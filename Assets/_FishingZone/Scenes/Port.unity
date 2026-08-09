@@ -526,8 +526,62 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 2245095535710297617, guid: 4a4af1410670c0e429471609e722b2b6, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 6901071979111354349}
+    - targetCorrespondingSourceObject: {fileID: 2245095535710297617, guid: 4a4af1410670c0e429471609e722b2b6, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 6901071979111354348}
   m_SourcePrefab: {fileID: 100100000, guid: 4a4af1410670c0e429471609e722b2b6, type: 3}
+--- !u!1 &6901071979111354347 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 2245095535710297617, guid: 4a4af1410670c0e429471609e722b2b6, type: 3}
+  m_PrefabInstance: {fileID: 6901071979111354346}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &6901071979111354348
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6901071979111354347}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1000000000000000000000000000015, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FishingZone::FishingZone.Player.PlayerMovement
+  _moveAction: {fileID: -8844526271294072560, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
+  _jumpAction: {fileID: -4327867482009348314, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
+  _moveSpeed: 4.5
+  _jumpHeight: 1.1
+  _gravity: -20
+  _groundedStickVelocity: -2
+--- !u!143 &6901071979111354349
+CharacterController:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6901071979111354347}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Height: 2
+  m_Radius: 0.5
+  m_SlopeLimit: 45
+  m_StepOffset: 0.3
+  m_SkinWidth: 0.08
+  m_MinMoveDistance: 0.001
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
