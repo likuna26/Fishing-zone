@@ -33,6 +33,7 @@ namespace FishingZone.Player
 
         public IInteractable CurrentTarget { get; private set; }
 
+        private IInteractable _capturedTarget;
         private bool _isConfigured;
 
         private void Awake()
@@ -46,7 +47,32 @@ namespace FishingZone.Player
 
         private void OnDisable()
         {
+            _capturedTarget = null;
             SetTarget(null);
+        }
+
+        public void CaptureFocus(IInteractable target)
+        {
+            if (target == null)
+            {
+                return;
+            }
+
+            _capturedTarget = target;
+            CurrentTarget = target;
+            FocusChanged?.Invoke(target);
+        }
+
+        public void ReleaseFocus(IInteractable target)
+        {
+            if (!ReferenceEquals(_capturedTarget, target))
+            {
+                return;
+            }
+
+            _capturedTarget = null;
+            CurrentTarget = null;
+            FocusChanged?.Invoke(null);
         }
 
         private void Update()
@@ -56,7 +82,7 @@ namespace FishingZone.Player
                 return;
             }
 
-            SetTarget(FindTarget());
+            SetTarget(_capturedTarget ?? FindTarget());
 
             if (CurrentTarget != null && _interactAction.action.WasPressedThisFrame())
             {
@@ -71,8 +97,6 @@ namespace FishingZone.Player
                 return null;
             }
 
-            // Searched from the parent chain so a station or boat can carry the component on its root
-            // while the collider the player actually looks at is a child mesh.
             IInteractable interactable = hit.collider.GetComponentInParent<IInteractable>();
             if (interactable == null || !interactable.CanInteract(gameObject))
             {
