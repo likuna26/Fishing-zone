@@ -533,6 +533,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 2245095535710297617, guid: 4a4af1410670c0e429471609e722b2b6, type: 3}
       insertIndex: -1
       addedObject: {fileID: 6901071979111354348}
+    - targetCorrespondingSourceObject: {fileID: 2245095535710297617, guid: 4a4af1410670c0e429471609e722b2b6, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 6901071979111354351}
   m_SourcePrefab: {fileID: 100100000, guid: 4a4af1410670c0e429471609e722b2b6, type: 3}
 --- !u!1 &6901071979111354347 stripped
 GameObject:
@@ -582,6 +585,30 @@ CharacterController:
   m_SkinWidth: 0.08
   m_MinMoveDistance: 0.001
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!4 &6901071979111354350 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 9062958361101834114, guid: 4a4af1410670c0e429471609e722b2b6, type: 3}
+  m_PrefabInstance: {fileID: 6901071979111354346}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &6901071979111354351
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6901071979111354347}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1000000000000000000000000000016, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FishingZone::FishingZone.Player.PlayerCamera
+  _lookAction: {fileID: 4681549295900300908, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
+  _cameraAnchor: {fileID: 6901071979111354350}
+  _mouseSensitivity: 0.12
+  _gamepadSensitivity: 180
+  _minPitch: -85
+  _maxPitch: 85
+  _invertY: 0
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
