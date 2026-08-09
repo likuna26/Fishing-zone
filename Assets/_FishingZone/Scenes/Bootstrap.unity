@@ -38,13 +38,12 @@ RenderSettings:
   m_ReflectionIntensity: 1
   m_CustomReflection: {fileID: 0}
   m_Sun: {fileID: 0}
-  m_IndirectSpecularColor: {r: 0, g: 0, b: 0, a: 1}
   m_UseRadianceAmbientProbe: 0
 --- !u!157 &3
 LightmapSettings:
   m_ObjectHideFlags: 0
-  serializedVersion: 12
-  m_GIWorkflowMode: 1
+  serializedVersion: 13
+  m_BakeOnSceneLoad: 0
   m_GISettings:
     serializedVersion: 2
     m_BounceScale: 1
@@ -180,7 +179,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a1000000000000000000000000000009, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _actions: {fileID: 0}
+  _actions: {fileID: -944628639613478452, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
 --- !u!114 &519420014
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -209,3 +208,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _gameFlow: {fileID: 519420012}
   _gameInput: {fileID: 519420013}
+--- !u!1660057539 &9223372036854775807
+SceneRoots:
+  m_ObjectHideFlags: 0
+  m_Roots:
+  - {fileID: 519420011}
