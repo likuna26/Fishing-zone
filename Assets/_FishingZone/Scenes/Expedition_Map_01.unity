@@ -675,74 +675,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1001 &1198896617
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 0}
-    m_Modifications:
-    - target: {fileID: 2245095535710297617, guid: 4a4af1410670c0e429471609e722b2b6, type: 3}
-      propertyPath: m_Name
-      value: PlayerRoot
-      objectReference: {fileID: 0}
-    - target: {fileID: 6279975379401448324, guid: 4a4af1410670c0e429471609e722b2b6, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6279975379401448324, guid: 4a4af1410670c0e429471609e722b2b6, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 1.5
-      objectReference: {fileID: 0}
-    - target: {fileID: 6279975379401448324, guid: 4a4af1410670c0e429471609e722b2b6, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: -1
-      objectReference: {fileID: 0}
-    - target: {fileID: 6279975379401448324, guid: 4a4af1410670c0e429471609e722b2b6, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 6279975379401448324, guid: 4a4af1410670c0e429471609e722b2b6, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6279975379401448324, guid: 4a4af1410670c0e429471609e722b2b6, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6279975379401448324, guid: 4a4af1410670c0e429471609e722b2b6, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6279975379401448324, guid: 4a4af1410670c0e429471609e722b2b6, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6279975379401448324, guid: 4a4af1410670c0e429471609e722b2b6, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6279975379401448324, guid: 4a4af1410670c0e429471609e722b2b6, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: 4a4af1410670c0e429471609e722b2b6, type: 3}
---- !u!114 &1198896618 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 4594850973657136296, guid: 4a4af1410670c0e429471609e722b2b6, type: 3}
-  m_PrefabInstance: {fileID: 1198896617}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a1000000000000000000000000000017, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: FishingZone::FishingZone.Player.PlayerInteraction
 --- !u!1 &1230999684
 GameObject:
   m_ObjectHideFlags: 0
@@ -1108,7 +1040,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a1000000000000000000000000000019, type: 3}
   m_Name: 
   m_EditorClassIdentifier: FishingZone::FishingZone.UI.InteractionPromptUI
-  _playerInteraction: {fileID: 1198896618}
+  _playerInteraction: {fileID: 0}
   _promptRoot: {fileID: 247004057}
   _promptText: {fileID: 1230999686}
 --- !u!1001 &8907886617521741720
@@ -1184,4 +1116,3 @@ SceneRoots:
   - {fileID: 8907886617521741720}
   - {fileID: 1906614081}
   - {fileID: 770948053}
-  - {fileID: 1198896617}
