@@ -31,6 +31,12 @@ namespace FishingZone.Player
 
         public Transform CurrentPlatform { get; private set; }
 
+        /// <summary>
+        /// Exposed so a station can resolve a standing position against exactly the same surfaces
+        /// this component will then track. Two separate masks would silently drift apart.
+        /// </summary>
+        public LayerMask PlatformLayers => _platformLayers;
+
         private Vector3 _localStandPoint;
         private float _lastPlatformYaw;
         private bool _hasSample;
