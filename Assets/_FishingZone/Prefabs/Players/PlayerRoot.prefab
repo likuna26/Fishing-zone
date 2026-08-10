@@ -147,6 +147,11 @@ GameObject:
   m_Component:
   - component: {fileID: 6279975379401448324}
   - component: {fileID: 7631781441834119347}
+  - component: {fileID: 5218243273452355514}
+  - component: {fileID: 7120832196451874522}
+  - component: {fileID: 8899917235514824957}
+  - component: {fileID: 1848518202191462154}
+  - component: {fileID: 4594850973657136296}
   m_Layer: 0
   m_Name: PlayerRoot
   m_TagString: Untagged
@@ -183,6 +188,100 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a1000000000000000000000000000014, type: 3}
   m_Name: 
   m_EditorClassIdentifier: FishingZone::FishingZone.Player.PlayerInputContext
+--- !u!114 &5218243273452355514
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2245095535710297617}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a100000000000000000000000000001d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FishingZone::FishingZone.Player.PlayerStationController
+  _movement: {fileID: 0}
+  _characterController: {fileID: 0}
+--- !u!143 &7120832196451874522
+CharacterController:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2245095535710297617}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Height: 2
+  m_Radius: 0.5
+  m_SlopeLimit: 45
+  m_StepOffset: 0.3
+  m_SkinWidth: 0.08
+  m_MinMoveDistance: 0.001
+  m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &8899917235514824957
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2245095535710297617}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1000000000000000000000000000015, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FishingZone::FishingZone.Player.PlayerMovement
+  _moveAction: {fileID: -8844526271294072560, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
+  _jumpAction: {fileID: -4327867482009348314, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
+  _moveSpeed: 4.5
+  _jumpHeight: 1.1
+  _gravity: -20
+  _groundedStickVelocity: -2
+--- !u!114 &1848518202191462154
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2245095535710297617}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1000000000000000000000000000016, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FishingZone::FishingZone.Player.PlayerCamera
+  _lookAction: {fileID: 4681549295900300908, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
+  _cameraAnchor: {fileID: 9062958361101834114}
+  _mouseSensitivity: 0.12
+  _gamepadSensitivity: 180
+  _minPitch: -85
+  _maxPitch: 85
+  _invertY: 0
+--- !u!114 &4594850973657136296
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2245095535710297617}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1000000000000000000000000000017, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FishingZone::FishingZone.Player.PlayerInteraction
+  _interactAction: {fileID: 6848011523988468819, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
+  _viewSource: {fileID: 9062958361101834114}
+  _range: 3
+  _interactableLayers:
+    serializedVersion: 2
+    m_Bits: 128
 --- !u!1 &3716633819390131977
 GameObject:
   m_ObjectHideFlags: 0
