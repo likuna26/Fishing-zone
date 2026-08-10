@@ -3,7 +3,8 @@
     "rootNamespace": "FishingZone",
     "references": [
         "Unity.InputSystem",
-        "Unity.TextMeshPro"
+        "Unity.TextMeshPro",
+        "Unity.Netcode.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
