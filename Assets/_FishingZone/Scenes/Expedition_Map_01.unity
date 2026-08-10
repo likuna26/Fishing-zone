@@ -880,168 +880,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1230999684}
   m_CullTransparentMesh: 1
---- !u!1 &1358245867
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1358245868}
-  - component: {fileID: 1358245869}
-  - component: {fileID: 1358245870}
-  m_Layer: 7
-  m_Name: NavigatorStation
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &1358245868
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1358245867}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.5, z: 1.5}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 1865734375}
-  - {fileID: 1382139918}
-  m_Father: {fileID: 8907886617521741723}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!65 &1358245869
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1358245867}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 1, y: 1.5, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &1358245870
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1358245867}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a100000000000000000000000000001c, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: FishingZone::FishingZone.Boat.NavigatorStation
-  _boatMovement: {fileID: 8907886617521741722}
-  _standAnchor: {fileID: 1865734375}
-  _enterText: Take the wheel
-  _exitText: Leave the wheel
---- !u!1 &1382139917
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1382139918}
-  - component: {fileID: 1382139921}
-  - component: {fileID: 1382139920}
-  m_Layer: 7
-  m_Name: WheelVisual
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &1382139918
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1382139917}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.6, z: 0}
-  m_LocalScale: {x: 0.6, y: 0.2, z: 0.6}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1358245868}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!23 &1382139920
-MeshRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1382139917}
-  m_Enabled: 1
-  m_CastShadows: 1
-  m_ReceiveShadows: 1
-  m_DynamicOccludee: 1
-  m_StaticShadowCaster: 0
-  m_MotionVectors: 1
-  m_LightProbeUsage: 1
-  m_ReflectionProbeUsage: 1
-  m_RayTracingMode: 2
-  m_RayTraceProcedural: 0
-  m_RayTracingAccelStructBuildFlagsOverride: 0
-  m_RayTracingAccelStructBuildFlags: 1
-  m_SmallMeshCulling: 1
-  m_ForceMeshLod: -1
-  m_MeshLodSelectionBias: 0
-  m_RenderingLayerMask: 1
-  m_RendererPriority: 0
-  m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
-  m_StaticBatchInfo:
-    firstSubMesh: 0
-    subMeshCount: 0
-  m_StaticBatchRoot: {fileID: 0}
-  m_ProbeAnchor: {fileID: 0}
-  m_LightProbeVolumeOverride: {fileID: 0}
-  m_ScaleInLightmap: 1
-  m_ReceiveGI: 1
-  m_PreserveUVs: 0
-  m_IgnoreNormalsForChartDetection: 0
-  m_ImportantGI: 0
-  m_StitchLightmapSeams: 1
-  m_SelectedEditorRenderState: 3
-  m_MinimumChartSize: 4
-  m_AutoUVMaxDistance: 0.5
-  m_AutoUVMaxAngle: 89
-  m_LightmapParameters: {fileID: 0}
-  m_GlobalIlluminationMeshLod: 0
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_MaskInteraction: 0
-  m_AdditionalVertexStreams: {fileID: 0}
---- !u!33 &1382139921
-MeshFilter:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1382139917}
-  m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!1 &1611621516
 GameObject:
   m_ObjectHideFlags: 0
@@ -1153,37 +991,6 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &1865734374
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1865734375}
-  m_Layer: 7
-  m_Name: StandAnchor
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &1865734375
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1865734374}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.4, z: -0.8}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1358245868}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1906614077
 GameObject:
@@ -1312,14 +1119,6 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
-    - target: {fileID: 1835789433850889914, guid: 33505922b46d55f47a6cba8aca310dc4, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -1.2
-      objectReference: {fileID: 0}
-    - target: {fileID: 1835789433850889914, guid: 33505922b46d55f47a6cba8aca310dc4, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: -0.3
-      objectReference: {fileID: 0}
     - target: {fileID: 2474291544220914369, guid: 33505922b46d55f47a6cba8aca310dc4, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
@@ -1360,61 +1159,15 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 4473273101190920998, guid: 33505922b46d55f47a6cba8aca310dc4, type: 3}
-      propertyPath: _waterAngularDrag
-      value: 6
-      objectReference: {fileID: 0}
-    - target: {fileID: 4473273101190920998, guid: 33505922b46d55f47a6cba8aca310dc4, type: 3}
-      propertyPath: _buoyancyAcceleration
-      value: 50
-      objectReference: {fileID: 0}
     - target: {fileID: 8218093952752353003, guid: 33505922b46d55f47a6cba8aca310dc4, type: 3}
       propertyPath: m_Name
       value: BoatRoot
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
-    m_AddedGameObjects:
-    - targetCorrespondingSourceObject: {fileID: 2474291544220914369, guid: 33505922b46d55f47a6cba8aca310dc4, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 1358245868}
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 8218093952752353003, guid: 33505922b46d55f47a6cba8aca310dc4, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 8907886617521741722}
+    m_AddedGameObjects: []
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 33505922b46d55f47a6cba8aca310dc4, type: 3}
---- !u!1 &8907886617521741721 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 8218093952752353003, guid: 33505922b46d55f47a6cba8aca310dc4, type: 3}
-  m_PrefabInstance: {fileID: 8907886617521741720}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &8907886617521741722
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8907886617521741721}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a100000000000000000000000000001b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: FishingZone::FishingZone.Boat.BoatMovement
-  _throttleAction: {fileID: -6517209604669027292, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
-  _steerAction: {fileID: 2822793437544625332, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
-  _brakeAction: {fileID: -4373732558195541613, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
-  _acceleration: 8
-  _maxSpeed: 12
-  _reverseMultiplier: 0.4
-  _turnTorque: 25
-  _fullTurnAuthoritySpeed: 2
-  _lateralFriction: 4
-  _brakeStrength: 6
---- !u!4 &8907886617521741723 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 2474291544220914369, guid: 33505922b46d55f47a6cba8aca310dc4, type: 3}
-  m_PrefabInstance: {fileID: 8907886617521741720}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

@@ -152,6 +152,7 @@ GameObject:
   - component: {fileID: 8899917235514824957}
   - component: {fileID: 1848518202191462154}
   - component: {fileID: 4594850973657136296}
+  - component: {fileID: 8561441561842563011}
   m_Layer: 0
   m_Name: PlayerRoot
   m_TagString: Untagged
@@ -245,6 +246,7 @@ MonoBehaviour:
   _jumpHeight: 1.1
   _gravity: -20
   _groundedStickVelocity: -2
+  _platformRider: {fileID: 0}
 --- !u!114 &1848518202191462154
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -282,6 +284,23 @@ MonoBehaviour:
   _interactableLayers:
     serializedVersion: 2
     m_Bits: 128
+--- !u!114 &8561441561842563011
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2245095535710297617}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a100000000000000000000000000001e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FishingZone::FishingZone.Player.PlayerPlatformRider
+  _characterController: {fileID: 0}
+  _platformLayers:
+    serializedVersion: 2
+    m_Bits: 512
+  _groundProbeDistance: 0.35
 --- !u!1 &3716633819390131977
 GameObject:
   m_ObjectHideFlags: 0
