@@ -1159,6 +1159,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 3021886673706493006, guid: 33505922b46d55f47a6cba8aca310dc4, type: 3}
+      propertyPath: m_IsTrigger
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 8218093952752353003, guid: 33505922b46d55f47a6cba8aca310dc4, type: 3}
       propertyPath: m_Name
       value: BoatRoot
