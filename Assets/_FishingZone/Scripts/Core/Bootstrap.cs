@@ -1,4 +1,5 @@
 using FishingZone.Core.Input;
+using FishingZone.Networking;
 using UnityEngine;
 
 namespace FishingZone.Core
@@ -16,6 +17,9 @@ namespace FishingZone.Core
         [SerializeField]
         private GameInput _gameInput;
 
+        [SerializeField]
+        private SessionManager _sessionManager;
+
         /// <summary>Guards against a second Bootstrap scene load creating a duplicate set of services.</summary>
         private static bool _hasInitialized;
 
@@ -25,7 +29,6 @@ namespace FishingZone.Core
         /// </summary>
         private bool _isServiceOwner;
 
-        // Static state survives play sessions when domain reload is disabled, so it is reset per run.
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetOnPlay()
         {
@@ -54,6 +57,11 @@ namespace FishingZone.Core
             ServiceRegistry.Register(_gameFlow);
             ServiceRegistry.Register(_gameInput);
 
+            if (_sessionManager != null)
+            {
+                ServiceRegistry.Register(_sessionManager);
+            }
+
             GameLog.Info(LogCategory.Boot, "Persistent services initialized.");
         }
 
@@ -64,8 +72,13 @@ namespace FishingZone.Core
                 return;
             }
 
-            // The menu is driven by UI input only; other maps stay off until a scene asks for them.
             _gameInput.EnableMap(InputMap.UI);
+
+            if (_sessionManager != null)
+            {
+                _sessionManager.StartHost();
+            }
+
             _gameFlow.GoTo(GameState.MainMenu);
         }
 
@@ -78,6 +91,7 @@ namespace FishingZone.Core
 
             ServiceRegistry.Unregister<GameFlowManager>();
             ServiceRegistry.Unregister<GameInput>();
+            ServiceRegistry.Unregister<SessionManager>();
             _hasInitialized = false;
         }
     }
