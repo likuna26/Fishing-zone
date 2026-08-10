@@ -37,13 +37,30 @@ namespace FishingZone.Player
         [SerializeField]
         private float _groundedStickVelocity = -2f;
 
+        /// <summary>Optional. When absent the player simply does not inherit platform motion.</summary>
+        [SerializeField]
+        private PlayerPlatformRider _platformRider;
+
         private CharacterController _controller;
         private float _verticalVelocity;
+
+        /// <summary>
+        /// Latched when a jump begins and held for the whole arc, including while descending back
+        /// within probe range of the deck. Deliberately not derived from isGrounded, which drops for
+        /// a frame at a time on a bobbing hull and would detach a player who never left the deck.
+        /// </summary>
+        private bool _isJumpDetached;
+
         private bool _isConfigured;
 
         private void Awake()
         {
             _controller = GetComponent<CharacterController>();
+
+            if (_platformRider == null)
+            {
+                _platformRider = GetComponent<PlayerPlatformRider>();
+            }
 
             _isConfigured = _moveAction != null && _jumpAction != null;
             if (!_isConfigured)
@@ -61,8 +78,6 @@ namespace FishingZone.Player
 
             UpdateVerticalVelocity();
 
-            // Milestone 2 note: standing on the moving boat will need the platform's delta added
-            // here, because a CharacterController does not inherit motion from what it stands on.
             Vector2 input = _moveAction.action.ReadValue<Vector2>();
             Vector3 horizontal = (transform.right * input.x) + (transform.forward * input.y);
             if (horizontal.sqrMagnitude > 1f)
@@ -71,22 +86,40 @@ namespace FishingZone.Player
             }
 
             Vector3 motion = (horizontal * _moveSpeed) + (Vector3.up * _verticalVelocity);
-            _controller.Move(motion * Time.deltaTime);
+
+            // Only a jump detaches. Every other case, including walking off an edge, is left to the
+            // rider's downward probe, which stops finding a platform on its own.
+            // Already a displacement rather than a velocity, so it is added after the delta time
+            // scaling and folded into the single Move call, which keeps collisions resolved once.
+            Vector3 platformDelta = _platformRider != null
+                ? _platformRider.ConsumePlatformDelta(_isJumpDetached)
+                : Vector3.zero;
+
+            _controller.Move((motion * Time.deltaTime) + platformDelta);
         }
 
         private void UpdateVerticalVelocity()
         {
+            // Reflects the previous Move, so on the frame a jump is pressed this is still true.
             bool isGrounded = _controller.isGrounded;
 
             if (isGrounded && _verticalVelocity < 0f)
             {
                 _verticalVelocity = _groundedStickVelocity;
+
+                // Grounded while descending is the only thing that counts as a landing, so an arc
+                // cannot be ended early by brushing the deck on the way past.
+                _isJumpDetached = false;
             }
 
             if (isGrounded && _jumpAction.action.WasPressedThisFrame())
             {
                 // Velocity needed to reach _jumpHeight. Abs keeps this valid if gravity is mis-signed.
                 _verticalVelocity = Mathf.Sqrt(_jumpHeight * 2f * Mathf.Abs(_gravity));
+
+                // Set after the landing check above, so the jump frame ends detached rather than
+                // being cleared by the grounded state it still reports.
+                _isJumpDetached = true;
             }
 
             _verticalVelocity += _gravity * Time.deltaTime;
