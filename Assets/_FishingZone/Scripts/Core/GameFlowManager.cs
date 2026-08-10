@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -23,12 +24,45 @@ namespace FishingZone.Core
 
         public bool IsTransitioning { get; private set; }
 
-        /// <summary>
-        /// Requests a move to <paramref name="target"/>. Illegal or redundant requests are
-        /// logged and ignored rather than throwing, so a mis-wired button can never break a session.
-        /// </summary>
+        private static bool IsSessionActive =>
+            NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening;
+
+        private bool _isSceneEventHooked;
+
+        private void Start()
+        {
+            if (NetworkManager.Singleton == null)
+            {
+                return;
+            }
+
+            NetworkManager.Singleton.OnServerStarted += HookSceneEvents;
+            NetworkManager.Singleton.OnClientStarted += HookSceneEvents;
+            NetworkManager.Singleton.OnServerStopped += HandleSessionStopped;
+            NetworkManager.Singleton.OnClientStopped += HandleSessionStopped;
+        }
+
+        private void OnDestroy()
+        {
+            if (NetworkManager.Singleton == null)
+            {
+                return;
+            }
+
+            NetworkManager.Singleton.OnServerStarted -= HookSceneEvents;
+            NetworkManager.Singleton.OnClientStarted -= HookSceneEvents;
+            NetworkManager.Singleton.OnServerStopped -= HandleSessionStopped;
+            NetworkManager.Singleton.OnClientStopped -= HandleSessionStopped;
+        }
+
         public void GoTo(GameState target)
         {
+            if (IsSessionActive && !NetworkManager.Singleton.IsServer)
+            {
+                GameLog.Warn(LogCategory.Flow, $"Ignored transition to {target}: only the host changes scene during a session.");
+                return;
+            }
+
             if (IsTransitioning)
             {
                 GameLog.Warn(LogCategory.Flow, $"Ignored transition to {target}: a transition is already in progress.");
@@ -63,10 +97,6 @@ namespace FishingZone.Core
             StartCoroutine(TransitionRoutine(target, sceneName));
         }
 
-        /// <summary>
-        /// The documented flow. Boot leads only to the main menu; Port is the hub that both
-        /// sends the crew out on an expedition and receives them when they return.
-        /// </summary>
         private static bool IsTransitionAllowed(GameState from, GameState to)
         {
             switch (from)
@@ -86,15 +116,34 @@ namespace FishingZone.Core
             }
         }
 
-        /// <summary>
-        /// Isolated on purpose: when Netcode is introduced, only this method changes to a
-        /// host-authoritative network scene load. Callers and flow rules stay untouched.
-        /// </summary>
         private IEnumerator TransitionRoutine(GameState target, string sceneName)
         {
             IsTransitioning = true;
             GameLog.Info(LogCategory.Flow, $"{CurrentState} -> {target} (loading scene '{sceneName}')");
 
+            IEnumerator load = IsSessionActive
+                ? LoadForSession(sceneName)
+                : LoadLocally(sceneName);
+
+            while (load.MoveNext())
+            {
+                yield return load.Current;
+            }
+
+            if (!IsTransitioning)
+            {
+                yield break;
+            }
+
+            CurrentState = target;
+            IsTransitioning = false;
+            GameLog.Info(LogCategory.Flow, $"Entered state {target}.");
+
+            StateChanged?.Invoke(target);
+        }
+
+        private IEnumerator LoadLocally(string sceneName)
+        {
             AsyncOperation load = SceneManager.LoadSceneAsync(sceneName, LoadSceneMode.Single);
             if (load == null)
             {
@@ -107,12 +156,85 @@ namespace FishingZone.Core
             {
                 yield return null;
             }
+        }
 
-            CurrentState = target;
+        private IEnumerator LoadForSession(string sceneName)
+        {
+            NetworkSceneManager sceneManager = NetworkManager.Singleton.SceneManager;
+            if (sceneManager == null)
+            {
+                GameLog.Error(LogCategory.Flow, "Scene management is disabled on the NetworkManager, so the host cannot move the crew between scenes.");
+                IsTransitioning = false;
+                yield break;
+            }
+
+            SceneEventProgressStatus status = sceneManager.LoadScene(sceneName, LoadSceneMode.Single);
+            if (status != SceneEventProgressStatus.Started)
+            {
+                GameLog.Error(LogCategory.Flow, $"Networked load of '{sceneName}' was refused: {status}.");
+                IsTransitioning = false;
+                yield break;
+            }
+
+            while (SceneManager.GetActiveScene().name != sceneName)
+            {
+                yield return null;
+            }
+        }
+
+        private void HookSceneEvents()
+        {
+            if (_isSceneEventHooked || NetworkManager.Singleton == null || NetworkManager.Singleton.SceneManager == null)
+            {
+                return;
+            }
+
+            NetworkManager.Singleton.SceneManager.OnLoadComplete += HandleNetworkLoadComplete;
+            _isSceneEventHooked = true;
+        }
+
+        private void HandleSessionStopped(bool isHost)
+        {
+            _isSceneEventHooked = false;
+        }
+
+        private void HandleNetworkLoadComplete(ulong clientId, string sceneName, LoadSceneMode loadSceneMode)
+        {
+            if (NetworkManager.Singleton == null
+                || NetworkManager.Singleton.IsServer
+                || clientId != NetworkManager.Singleton.LocalClientId)
+            {
+                return;
+            }
+
+            if (!TryGetStateForScene(sceneName, out GameState state) || state == CurrentState)
+            {
+                return;
+            }
+
+            CurrentState = state;
             IsTransitioning = false;
-            GameLog.Info(LogCategory.Flow, $"Entered state {target}.");
+            GameLog.Info(LogCategory.Flow, $"Followed the host into {state}.");
 
-            StateChanged?.Invoke(target);
+            StateChanged?.Invoke(state);
+        }
+
+        private bool TryGetStateForScene(string sceneName, out GameState state)
+        {
+            if (_sceneCatalog != null)
+            {
+                foreach (GameState candidate in Enum.GetValues(typeof(GameState)))
+                {
+                    if (_sceneCatalog.GetSceneName(candidate) == sceneName)
+                    {
+                        state = candidate;
+                        return true;
+                    }
+                }
+            }
+
+            state = GameState.Boot;
+            return false;
         }
     }
 }
