@@ -1,58 +1,128 @@
+using System.Collections;
 using FishingZone.Core;
 using FishingZone.Player;
 using TMPro;
+using Unity.Netcode;
 using UnityEngine;
 
 namespace FishingZone.UI
 {
     /// <summary>
-    /// Shows the interaction prompt for whatever the player is currently looking at.
-    /// Driven entirely by <see cref="PlayerInteraction.FocusChanged"/>: the prompt is rebuilt only
-    /// when the target actually changes, never polled per frame (Technical Specification section 41).
-    /// The text itself always comes from the interactable, so this class never describes any object.
+    /// Shows the interaction prompt for whatever the local player is currently looking at.
+    /// The prompt references remain scene-owned, while the PlayerInteraction may arrive later as a
+    /// network-spawned player object.
     /// </summary>
     public class InteractionPromptUI : MonoBehaviour
     {
         [SerializeField]
         private PlayerInteraction _playerInteraction;
 
-        /// <summary>Object switched on and off to reveal the prompt. Usually the text's parent panel.</summary>
         [SerializeField]
         private GameObject _promptRoot;
 
         [SerializeField]
         private TMP_Text _promptText;
 
-        private bool _isConfigured;
+        private bool _isUiConfigured;
+        private bool _isBound;
+        private Coroutine _bindRoutine;
 
         private void Awake()
         {
-            _isConfigured = _playerInteraction != null && _promptRoot != null && _promptText != null;
-            if (!_isConfigured)
+            _isUiConfigured = _promptRoot != null && _promptText != null;
+            if (!_isUiConfigured)
             {
-                GameLog.Error(LogCategory.UI, "InteractionPromptUI is missing a Player Interaction, Prompt Root or Prompt Text reference. Assign all three in the Inspector.");
+                GameLog.Error(LogCategory.UI,
+                    "InteractionPromptUI is missing a Prompt Root or Prompt Text reference. Assign both in the Inspector.");
+                return;
             }
+
+            _promptRoot.SetActive(false);
         }
 
         private void OnEnable()
         {
-            if (!_isConfigured)
+            if (!_isUiConfigured)
             {
                 return;
             }
 
-            _playerInteraction.FocusChanged += OnFocusChanged;
+            if (TryBindPlayerInteraction())
+            {
+                return;
+            }
 
-            // The player may already be looking at something by the time this enables,
-            // so adopt the current target rather than waiting for the next change.
-            OnFocusChanged(_playerInteraction.CurrentTarget);
+            _bindRoutine = StartCoroutine(WaitForLocalPlayer());
         }
 
         private void OnDisable()
         {
-            if (_isConfigured)
+            if (_bindRoutine != null)
+            {
+                StopCoroutine(_bindRoutine);
+                _bindRoutine = null;
+            }
+
+            UnbindPlayerInteraction();
+        }
+
+        private IEnumerator WaitForLocalPlayer()
+        {
+            while (isActiveAndEnabled && !TryBindPlayerInteraction())
+            {
+                yield return null;
+            }
+
+            _bindRoutine = null;
+        }
+
+        private bool TryBindPlayerInteraction()
+        {
+            if (_isBound)
+            {
+                return true;
+            }
+
+            if (_playerInteraction == null)
+            {
+                NetworkManager networkManager = NetworkManager.Singleton;
+                NetworkObject localPlayer = networkManager != null
+                    ? networkManager.LocalClient?.PlayerObject
+                    : null;
+
+                if (localPlayer == null)
+                {
+                    return false;
+                }
+
+                _playerInteraction = localPlayer.GetComponent<PlayerInteraction>();
+                if (_playerInteraction == null)
+                {
+                    GameLog.Error(LogCategory.UI,
+                        "The local network player has no PlayerInteraction component, so InteractionPromptUI cannot bind.");
+                    return false;
+                }
+            }
+
+            _playerInteraction.FocusChanged += OnFocusChanged;
+            _isBound = true;
+            OnFocusChanged(_playerInteraction.CurrentTarget);
+            return true;
+        }
+
+        private void UnbindPlayerInteraction()
+        {
+            if (_isBound && _playerInteraction != null)
             {
                 _playerInteraction.FocusChanged -= OnFocusChanged;
+            }
+
+            _isBound = false;
+            _playerInteraction = null;
+
+            if (_promptRoot != null)
+            {
+                _promptRoot.SetActive(false);
             }
         }
 
