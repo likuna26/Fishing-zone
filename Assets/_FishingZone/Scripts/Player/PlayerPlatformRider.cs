@@ -49,6 +49,19 @@ namespace FishingZone.Player
         }
 
         /// <summary>
+        /// Forgets the current platform, so the next <see cref="ConsumePlatformDelta"/> can only
+        /// re-establish a reference and return zero.
+        ///
+        /// Stations call this on both sitting down and standing up. While seated the transform is
+        /// driven by parenting rather than by walking, so any reference taken during that time
+        /// describes a different regime and must never be differenced against a walking position.
+        /// </summary>
+        public void ResetTracking()
+        {
+            ClearPlatform();
+        }
+
+        /// <summary>
         /// Returns the world-space displacement the player should inherit this frame, and applies the
         /// platform's turn to their facing. Called by PlayerMovement so the result lands in the same
         /// Move call as the player's own motion: applying it separately would mean two Move calls per
@@ -108,10 +121,16 @@ namespace FishingZone.Player
         /// </summary>
         private void LateUpdate()
         {
-            if (CurrentPlatform != null)
+            // A disabled controller means the transform is being moved by something other than
+            // walking, currently station parenting. Sampling then would record a reference that the
+            // first walking frame would difference against, producing a displacement that never
+            // corresponded to any real movement.
+            if (CurrentPlatform == null || _characterController == null || !_characterController.enabled)
             {
-                SamplePlatform();
+                return;
             }
+
+            SamplePlatform();
         }
 
         private Transform FindPlatform()
