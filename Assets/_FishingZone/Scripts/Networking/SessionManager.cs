@@ -1,3 +1,4 @@
+using System.Collections;
 using FishingZone.Core;
 using Unity.Netcode;
 using UnityEngine;
@@ -10,6 +11,8 @@ namespace FishingZone.Networking
     public class SessionManager : MonoBehaviour
     {
         public bool IsSessionActive => NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening;
+
+        private bool _isSwitchingSession;
 
         public bool StartHost()
         {
@@ -53,6 +56,55 @@ namespace FishingZone.Networking
             }
 
             return true;
+        }
+
+        public void JoinAsClient()
+        {
+            if (!TryGetNetworkManager(out NetworkManager networkManager))
+            {
+                return;
+            }
+
+            if (_isSwitchingSession)
+            {
+                GameLog.Warn(LogCategory.Network, "Ignored Join: already switching session.");
+                return;
+            }
+
+            if (networkManager.IsClient && !networkManager.IsHost)
+            {
+                GameLog.Warn(LogCategory.Network, "Ignored Join: already connected to a crew.");
+                return;
+            }
+
+            StartCoroutine(JoinAsClientRoutine());
+        }
+
+        private IEnumerator JoinAsClientRoutine()
+        {
+            _isSwitchingSession = true;
+
+            NetworkManager networkManager = NetworkManager.Singleton;
+
+            if (networkManager.IsListening)
+            {
+                GameLog.Info(LogCategory.Network, "Leaving the local session to join a crew.");
+                networkManager.Shutdown();
+            }
+
+            while (networkManager != null && (networkManager.ShutdownInProgress || networkManager.IsListening))
+            {
+                yield return null;
+            }
+
+            _isSwitchingSession = false;
+
+            if (networkManager == null)
+            {
+                yield break;
+            }
+
+            StartClient();
         }
 
         public void Shutdown()
