@@ -250,7 +250,6 @@ MonoBehaviour:
   _jumpHeight: 1.1
   _gravity: -20
   _groundedStickVelocity: -2
-  _platformRider: {fileID: 0}
 --- !u!114 &1848518202191462154
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -301,10 +300,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: FishingZone::FishingZone.Player.PlayerPlatformRider
   _characterController: {fileID: 0}
+  _movement: {fileID: 0}
   _platformLayers:
     serializedVersion: 2
     m_Bits: 512
   _groundProbeDistance: 0.35
+  _logDiagnostics: 0
+  _diagnosticHeartbeatSeconds: 2
 --- !u!114 &1055200100049784535
 MonoBehaviour:
   m_ObjectHideFlags: 0
