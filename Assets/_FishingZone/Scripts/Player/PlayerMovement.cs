@@ -37,10 +37,6 @@ namespace FishingZone.Player
         [SerializeField]
         private float _groundedStickVelocity = -2f;
 
-        /// <summary>Optional. When absent the player simply does not inherit platform motion.</summary>
-        [SerializeField]
-        private PlayerPlatformRider _platformRider;
-
         private CharacterController _controller;
         private float _verticalVelocity;
 
@@ -51,16 +47,18 @@ namespace FishingZone.Player
         /// </summary>
         private bool _isJumpDetached;
 
+        /// <summary>
+        /// Read by the platform rider, which cannot work this out for itself: its downward probe
+        /// cannot tell a standing player from one in the first frames of a jump, because both are
+        /// still within range of the deck.
+        /// </summary>
+        public bool IsPlatformDetached => _isJumpDetached;
+
         private bool _isConfigured;
 
         private void Awake()
         {
             _controller = GetComponent<CharacterController>();
-
-            if (_platformRider == null)
-            {
-                _platformRider = GetComponent<PlayerPlatformRider>();
-            }
 
             _isConfigured = _moveAction != null && _jumpAction != null;
             if (!_isConfigured)
@@ -87,15 +85,10 @@ namespace FishingZone.Player
 
             Vector3 motion = (horizontal * _moveSpeed) + (Vector3.up * _verticalVelocity);
 
-            // Only a jump detaches. Every other case, including walking off an edge, is left to the
-            // rider's downward probe, which stops finding a platform on its own.
-            // Already a displacement rather than a velocity, so it is added after the delta time
-            // scaling and folded into the single Move call, which keeps collisions resolved once.
-            Vector3 platformDelta = _platformRider != null
-                ? _platformRider.ConsumePlatformDelta(_isJumpDetached)
-                : Vector3.zero;
-
-            _controller.Move((motion * Time.deltaTime) + platformDelta);
+            // Only the player's own motion. Inherited deck motion is applied by the platform rider
+            // in LateUpdate, once a locally simulated hull has finished its physics step and a
+            // replicated one has finished interpolating.
+            _controller.Move(motion * Time.deltaTime);
         }
 
         private void UpdateVerticalVelocity()
