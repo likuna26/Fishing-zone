@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using FishingZone.Core;
 using Unity.Netcode;
 using UnityEngine;
@@ -87,15 +88,31 @@ namespace FishingZone.Networking
                 return;
             }
 
-            NetworkObject instance = Instantiate(_playerPrefab, GetSpawnPosition(clientId), Quaternion.identity);
+            GetSpawnPose(clientId, out Vector3 position, out Quaternion rotation);
+            NetworkObject instance = Instantiate(_playerPrefab, position, rotation);
             instance.SpawnAsPlayerObject(clientId, destroyWithScene: true);
             GameLog.Info(LogCategory.Network, $"Spawned player for client {clientId}.");
         }
 
-        private Vector3 GetSpawnPosition(ulong clientId)
+        private void GetSpawnPose(ulong clientId, out Vector3 position, out Quaternion rotation)
         {
+            IReadOnlyList<PlayerSpawnPoint> points = PlayerSpawnPoint.All;
+            if (points.Count > 0)
+            {
+                PlayerSpawnPoint point = points[(int)(clientId % (ulong)points.Count)];
+                position = point.transform.position;
+
+                Vector3 heading = Vector3.ProjectOnPlane(point.transform.forward, Vector3.up);
+                rotation = heading.sqrMagnitude > 0.0001f
+                    ? Quaternion.LookRotation(heading, Vector3.up)
+                    : Quaternion.identity;
+                return;
+            }
+
+            GameLog.Warn(LogCategory.Network, "No PlayerSpawnPoint in this scene; falling back to world origin.");
             float angle = clientId * 90f * Mathf.Deg2Rad;
-            return new Vector3(Mathf.Sin(angle) * _spawnRingRadius, 1f, Mathf.Cos(angle) * _spawnRingRadius);
+            position = new Vector3(Mathf.Sin(angle) * _spawnRingRadius, 1f, Mathf.Cos(angle) * _spawnRingRadius);
+            rotation = Quaternion.identity;
         }
 
         private bool IsGameplayState(GameState state)
