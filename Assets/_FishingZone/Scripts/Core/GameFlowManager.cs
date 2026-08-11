@@ -27,6 +27,9 @@ namespace FishingZone.Core
         private static bool IsSessionActive =>
             NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening;
 
+        /// <summary>Grace period for a followed scene to become active before it is called a failure.</summary>
+        private const float FollowActivationTimeout = 5f;
+
         private bool _isSceneEventHooked;
 
         private void Start()
@@ -210,6 +213,35 @@ namespace FishingZone.Core
             if (!TryGetStateForScene(sceneName, out GameState state) || state == CurrentState)
             {
                 return;
+            }
+
+            StartCoroutine(FollowHostRoutine(state, sceneName));
+        }
+
+        /// <summary>
+        /// Adopts the host's scene, but only once this client is genuinely in it.
+        /// </summary>
+        private IEnumerator FollowHostRoutine(GameState state, string sceneName)
+        {
+            Scene loaded = SceneManager.GetSceneByName(sceneName);
+            if (loaded.IsValid() && loaded.isLoaded && SceneManager.GetActiveScene() != loaded)
+            {
+                SceneManager.SetActiveScene(loaded);
+            }
+
+            float remaining = FollowActivationTimeout;
+            while (SceneManager.GetActiveScene().name != sceneName && remaining > 0f)
+            {
+                remaining -= Time.unscaledDeltaTime;
+                yield return null;
+            }
+
+            if (SceneManager.GetActiveScene().name != sceneName)
+            {
+                GameLog.Error(LogCategory.Flow,
+                    $"Netcode reported '{sceneName}' loaded, but the active scene is still '{SceneManager.GetActiveScene().name}'. " +
+                    $"State stays {CurrentState}. Check that '{sceneName}' is in the build list on this client.");
+                yield break;
             }
 
             CurrentState = state;
