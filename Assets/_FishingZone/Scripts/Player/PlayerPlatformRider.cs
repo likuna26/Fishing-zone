@@ -38,6 +38,11 @@ namespace FishingZone.Player
         [SerializeField]
         private float _groundProbeDistance = 0.35f;
 
+        /// <summary>
+        /// Diagnostics for tracking down why a deck reference is lost. Off by default; it reports on
+        /// change rather than every frame, plus a slow heartbeat, so the console stays readable.
+        /// Only ever emitted by the local player, since this component is disabled on remote copies.
+        /// </summary>
         [SerializeField]
         private bool _logDiagnostics;
 
@@ -77,6 +82,14 @@ namespace FishingZone.Player
             ClearPlatform();
         }
 
+        /// <summary>
+        /// Forgets the current platform, so the next frame can only re-establish a reference and
+        /// inherit nothing.
+        ///
+        /// Stations call this on both sitting down and standing up. While seated the transform is
+        /// driven by the seat rather than by walking, so any reference taken during that time
+        /// describes a different regime and must never be differenced against a walking position.
+        /// </summary>
         public void ResetTracking()
         {
             ClearPlatform();
@@ -205,10 +218,15 @@ namespace FishingZone.Player
 
         private Transform FindPlatform()
         {
-            Vector3 origin = transform.TransformPoint(_characterController.center);
-            float distance = (_characterController.height * 0.5f) + _groundProbeDistance;
+            float radius = _characterController.radius;
+            float bottomOffset = Mathf.Max((_characterController.height * 0.5f) - radius, 0f);
+            Vector3 bottomSphere = transform.TransformPoint(_characterController.center) + (Vector3.down * bottomOffset);
+            float sweepRadius = Mathf.Max(radius - _characterController.skinWidth, 0.01f);
+            Vector3 origin = bottomSphere + (Vector3.up * radius);
+            float distance = (2f * radius) - sweepRadius + _groundProbeDistance + _characterController.skinWidth;
 
-            if (!Physics.Raycast(origin, Vector3.down, out RaycastHit hit, distance, _platformLayers))
+            if (!Physics.SphereCast(origin, sweepRadius, Vector3.down, out RaycastHit hit, distance,
+                    _platformLayers, QueryTriggerInteraction.Ignore))
             {
                 return null;
             }
