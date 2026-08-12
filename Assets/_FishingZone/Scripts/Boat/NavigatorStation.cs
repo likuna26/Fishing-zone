@@ -3,6 +3,7 @@ using FishingZone.Core.Input;
 using FishingZone.Player;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace FishingZone.Boat
 {
@@ -17,6 +18,10 @@ namespace FishingZone.Boat
     /// While occupied the station captures the local occupant's interaction focus, so looking at
     /// anything else on deck cannot steal the key that gets them out of the seat. The Player action
     /// map is deliberately left enabled throughout, because Interact lives on it.
+    ///
+    /// The station also relays the local driver's Boat input to the server. Keeping that relay here
+    /// guarantees the component already exists on every networked boat and avoids relying on a
+    /// separately wired NetworkBehaviour in the scene.
     /// </summary>
     public class NavigatorStation : NetworkBehaviour, IInteractable
     {
@@ -50,6 +55,9 @@ namespace FishingZone.Boat
         private PlayerStationController _localSeatedPlayer;
         private PlayerInteraction _localInteraction;
         private GameInput _gameInput;
+        private InputAction _throttleAction;
+        private InputAction _steerAction;
+        private InputAction _brakeAction;
 
         private bool IsLocalOccupant =>
             NetworkManager.Singleton != null && _occupantClientId.Value == NetworkManager.Singleton.LocalClientId;
@@ -86,6 +94,32 @@ namespace FishingZone.Boat
 
             // Never strand a player seated at a station that is going away.
             ReleaseLocalSeat();
+        }
+
+        private void FixedUpdate()
+        {
+            if (!IsSpawned || !IsLocalOccupant || _boatMovement == null)
+            {
+                return;
+            }
+
+            if (!ResolveBoatActions())
+            {
+                return;
+            }
+
+            float throttle = _throttleAction.ReadValue<float>();
+            float steer = _steerAction.ReadValue<float>();
+            bool isBraking = _brakeAction.IsPressed();
+
+            if (IsServer)
+            {
+                _boatMovement.SetInput(throttle, steer, isBraking);
+            }
+            else
+            {
+                SubmitInputServerRpc(throttle, steer, isBraking);
+            }
         }
 
         public bool CanInteract(GameObject interactor)
@@ -152,6 +186,19 @@ namespace FishingZone.Boat
             }
 
             ReleaseOnServer();
+        }
+
+        [ServerRpc(RequireOwnership = false)]
+        private void SubmitInputServerRpc(float throttle, float steer, bool isBraking, ServerRpcParams parameters = default)
+        {
+            // Never trust a client merely because it can reach this RPC. The current replicated
+            // occupant is the only client whose driving intent may reach the authoritative hull.
+            if (_occupantClientId.Value != parameters.Receive.SenderClientId)
+            {
+                return;
+            }
+
+            _boatMovement.SetInput(throttle, steer, isBraking);
         }
 
         private void ReleaseOnServer()
@@ -233,7 +280,38 @@ namespace FishingZone.Boat
             {
                 // Added, not switched to: Interact is on the Player map and must stay live.
                 _gameInput.EnableMap(InputMap.Boat);
+                ResolveBoatActions();
             }
+        }
+
+        private bool ResolveBoatActions()
+        {
+            if (_throttleAction != null && _steerAction != null && _brakeAction != null)
+            {
+                return true;
+            }
+
+            if (_gameInput == null)
+            {
+                _gameInput = ServiceRegistry.Get<GameInput>();
+            }
+
+            if (_gameInput?.Actions == null)
+            {
+                return false;
+            }
+
+            _throttleAction = _gameInput.Actions.FindAction("Boat/Throttle", throwIfNotFound: false);
+            _steerAction = _gameInput.Actions.FindAction("Boat/Steer", throwIfNotFound: false);
+            _brakeAction = _gameInput.Actions.FindAction("Boat/Brake", throwIfNotFound: false);
+
+            if (_throttleAction == null || _steerAction == null || _brakeAction == null)
+            {
+                GameLog.Error(LogCategory.Input, "NavigatorStation could not resolve Boat/Throttle, Boat/Steer or Boat/Brake from GameInput.");
+                return false;
+            }
+
+            return true;
         }
 
         private void ReleaseLocalSeat()
@@ -243,6 +321,10 @@ namespace FishingZone.Boat
                 _gameInput.DisableMap(InputMap.Boat);
                 _gameInput = null;
             }
+
+            _throttleAction = null;
+            _steerAction = null;
+            _brakeAction = null;
 
             if (_localInteraction != null)
             {
