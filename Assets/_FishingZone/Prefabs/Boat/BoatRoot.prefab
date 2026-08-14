@@ -81,7 +81,7 @@ BoxCollider:
     serializedVersion: 2
     m_Bits: 0
   m_LayerOverridePriority: 0
-  m_IsTrigger: 0
+  m_IsTrigger: 1
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
@@ -99,10 +99,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a100000000000000000000000000001c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: FishingZone::FishingZone.Boat.NavigatorStation
+  ShowTopMostFoldoutHeaderGroup: 1
   _boatMovement: {fileID: 5865538808782169829}
   _standAnchor: {fileID: 6856084373789298102}
   _enterText: Take the wheel
   _exitText: Leave the wheel
+  _busyText: Wheel in use
 --- !u!1 &4184310325885979719
 GameObject:
   m_ObjectHideFlags: 0
@@ -389,6 +391,10 @@ GameObject:
   - component: {fileID: 4935615186752249288}
   - component: {fileID: 4473273101190920998}
   - component: {fileID: 5865538808782169829}
+  - component: {fileID: 6499003802721056028}
+  - component: {fileID: 8774601646985055606}
+  - component: {fileID: 1456299964730992533}
+  - component: {fileID: 8072850402786104417}
   m_Layer: 9
   m_Name: BoatRoot
   m_TagString: Untagged
@@ -501,9 +507,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a100000000000000000000000000001b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: FishingZone::FishingZone.Boat.BoatMovement
-  _throttleAction: {fileID: -6517209604669027292, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
-  _steerAction: {fileID: 2822793437544625332, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
-  _brakeAction: {fileID: -4373732558195541613, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
   _acceleration: 8
   _maxSpeed: 12
   _reverseMultiplier: 0.4
@@ -511,6 +514,112 @@ MonoBehaviour:
   _fullTurnAuthoritySpeed: 2
   _lateralFriction: 4
   _brakeStrength: 6
+--- !u!114 &6499003802721056028
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8218093952752353003}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
+  GlobalObjectIdHash: 3215210731
+  InScenePlacedSourceGlobalObjectIdHash: 3076503993
+  DeferredDespawnTick: 0
+  Ownership: 1
+  AlwaysReplicateAsRoot: 0
+  SynchronizeTransform: 1
+  m_InScenePlaced: 1
+  ActiveSceneSynchronization: 0
+  SceneMigrationSynchronization: 0
+  SpawnWithObservers: 1
+  DontDestroyWithOwner: 0
+  AutoObjectParentSync: 1
+  SyncOwnerTransformWhenParented: 1
+  AllowOwnerToParent: 0
+--- !u!114 &8774601646985055606
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8218093952752353003}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e96cb6065543e43c4a752faaa1468eb1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.Components.NetworkTransform
+  ShowTopMostFoldoutHeaderGroup: 1
+  NetworkTransformExpanded: 0
+  AutoOwnerAuthorityTickOffset: 1
+  PositionInterpolationType: 0
+  RotationInterpolationType: 0
+  ScaleInterpolationType: 0
+  PositionLerpSmoothing: 1
+  PositionMaxInterpolationTime: 0.1
+  RotationLerpSmoothing: 1
+  RotationMaxInterpolationTime: 0.1
+  ScaleLerpSmoothing: 1
+  ScaleMaxInterpolationTime: 0.1
+  AuthorityMode: 0
+  TickSyncChildren: 0
+  UseUnreliableDeltas: 0
+  SyncPositionX: 1
+  SyncPositionY: 1
+  SyncPositionZ: 1
+  SyncRotAngleX: 1
+  SyncRotAngleY: 1
+  SyncRotAngleZ: 1
+  SyncScaleX: 1
+  SyncScaleY: 1
+  SyncScaleZ: 1
+  PositionThreshold: 0.001
+  RotAngleThreshold: 0.01
+  ScaleThreshold: 0.01
+  UseQuaternionSynchronization: 0
+  UseQuaternionCompression: 0
+  UseHalfFloatPrecision: 0
+  InLocalSpace: 0
+  SwitchTransformSpaceWhenParented: 0
+  Interpolate: 1
+  SlerpPosition: 0
+--- !u!114 &1456299964730992533
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8218093952752353003}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1000000000000000000000000000024, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FishingZone::FishingZone.Boat.BoatNetworkState
+  ShowTopMostFoldoutHeaderGroup: 1
+  _buoyancy: {fileID: 0}
+  _movement: {fileID: 0}
+  _rigidbody: {fileID: 0}
+--- !u!114 &8072850402786104417
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8218093952752353003}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1000000000000000000000000000026, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FishingZone::FishingZone.Boat.BoatInputRelay
+  ShowTopMostFoldoutHeaderGroup: 1
+  _throttleAction: {fileID: -6517209604669027292, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
+  _steerAction: {fileID: 2822793437544625332, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
+  _brakeAction: {fileID: -4373732558195541613, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
+  _boatMovement: {fileID: 0}
+  _station: {fileID: 0}
 --- !u!1 &8903063023141237453
 GameObject:
   m_ObjectHideFlags: 0
