@@ -1,0 +1,276 @@
+using System;
+using FishingZone.Core;
+using Unity.Netcode;
+using UnityEngine;
+
+namespace FishingZone.Networking
+{
+    /// <summary>
+    /// Who is in the crew and who is ready, owned by the server.
+    ///
+    /// Deliberately built from plain ulong and bool network variables rather than a list of a custom
+    /// struct. The crew is one to four people by design, so a fixed set of slots costs nothing, and
+    /// primitives avoid depending on serialization and equality rules that differ between Netcode
+    /// versions. The same two mechanisms already carry the wheel's occupancy.
+    ///
+    /// Lives on an object in the Lobby scene. It cannot live on the persistent services object:
+    /// that is made DontDestroyOnLoad from a scene loaded before any session exists, which is not
+    /// somewhere Netcode can be relied on to spawn an in-scene object.
+    ///
+    /// The four slots describe the shape of the crew, not a connection limit. Nothing here refuses
+    /// a connection.
+    /// </summary>
+    public class CrewRoster : NetworkBehaviour
+    {
+        /// <summary>No real client id, so an empty slot needs no second variable to describe it.</summary>
+        public const ulong EmptySlot = ulong.MaxValue;
+
+        public const int SlotCount = 4;
+
+        private readonly NetworkVariable<ulong> _memberA = NewMemberSlot();
+        private readonly NetworkVariable<ulong> _memberB = NewMemberSlot();
+        private readonly NetworkVariable<ulong> _memberC = NewMemberSlot();
+        private readonly NetworkVariable<ulong> _memberD = NewMemberSlot();
+
+        private readonly NetworkVariable<bool> _readyA = NewReadySlot();
+        private readonly NetworkVariable<bool> _readyB = NewReadySlot();
+        private readonly NetworkVariable<bool> _readyC = NewReadySlot();
+        private readonly NetworkVariable<bool> _readyD = NewReadySlot();
+
+        /// <summary>Raised on every peer whenever membership or readiness changes.</summary>
+        public event Action RosterChanged;
+
+        private NetworkVariable<ulong>[] _members;
+        private NetworkVariable<bool>[] _ready;
+
+        private static NetworkVariable<ulong> NewMemberSlot()
+        {
+            return new NetworkVariable<ulong>(EmptySlot, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+        }
+
+        private static NetworkVariable<bool> NewReadySlot()
+        {
+            return new NetworkVariable<bool>(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+        }
+
+        private void Awake()
+        {
+            // Gathered into arrays only after the fields exist, because Netcode discovers network
+            // variables by reflecting over the declared fields.
+            _members = new[] { _memberA, _memberB, _memberC, _memberD };
+            _ready = new[] { _readyA, _readyB, _readyC, _readyD };
+        }
+
+        public override void OnNetworkSpawn()
+        {
+            for (int i = 0; i < SlotCount; i++)
+            {
+                _members[i].OnValueChanged += HandleMemberChanged;
+                _ready[i].OnValueChanged += HandleReadyChanged;
+            }
+
+            if (IsServer)
+            {
+                // Everyone already connected when the lobby opened, which on a fresh crew is just
+                // the host, and on a mid-session return is the whole crew.
+                foreach (ulong clientId in NetworkManager.Singleton.ConnectedClientsIds)
+                {
+                    AddMember(clientId);
+                }
+
+                NetworkManager.Singleton.OnClientConnectedCallback += AddMember;
+                NetworkManager.Singleton.OnClientDisconnectCallback += RemoveMember;
+            }
+
+            RosterChanged?.Invoke();
+        }
+
+        public override void OnNetworkDespawn()
+        {
+            for (int i = 0; i < SlotCount; i++)
+            {
+                _members[i].OnValueChanged -= HandleMemberChanged;
+                _ready[i].OnValueChanged -= HandleReadyChanged;
+            }
+
+            if (IsServer && NetworkManager.Singleton != null)
+            {
+                NetworkManager.Singleton.OnClientConnectedCallback -= AddMember;
+                NetworkManager.Singleton.OnClientDisconnectCallback -= RemoveMember;
+            }
+        }
+
+        public bool IsSlotOccupied(int slot)
+        {
+            return IsValidSlot(slot) && _members[slot].Value != EmptySlot;
+        }
+
+        public ulong GetMemberAt(int slot)
+        {
+            return IsValidSlot(slot) ? _members[slot].Value : EmptySlot;
+        }
+
+        public bool IsReadyAt(int slot)
+        {
+            return IsValidSlot(slot) && _ready[slot].Value;
+        }
+
+        public bool IsLocalMemberAt(int slot)
+        {
+            return NetworkManager.Singleton != null
+                   && IsSlotOccupied(slot)
+                   && _members[slot].Value == NetworkManager.Singleton.LocalClientId;
+        }
+
+        public int MemberCount
+        {
+            get
+            {
+                int count = 0;
+                for (int i = 0; i < SlotCount; i++)
+                {
+                    if (IsSlotOccupied(i))
+                    {
+                        count++;
+                    }
+                }
+
+                return count;
+            }
+        }
+
+        /// <summary>
+        /// True only when there is somebody in the crew and every one of them is ready. Empty slots
+        /// are not treated as agreement, so a crew of one still has to say yes.
+        /// </summary>
+        public bool AllReady
+        {
+            get
+            {
+                int occupied = 0;
+
+                for (int i = 0; i < SlotCount; i++)
+                {
+                    if (!IsSlotOccupied(i))
+                    {
+                        continue;
+                    }
+
+                    occupied++;
+
+                    if (!_ready[i].Value)
+                    {
+                        return false;
+                    }
+                }
+
+                return occupied > 0;
+            }
+        }
+
+        public bool IsLocalMemberReady
+        {
+            get
+            {
+                int slot = FindSlotOf(NetworkManager.Singleton != null ? NetworkManager.Singleton.LocalClientId : EmptySlot);
+                return slot >= 0 && _ready[slot].Value;
+            }
+        }
+
+        /// <summary>
+        /// Asks the server to change this player's own readiness. Clients never write the state
+        /// themselves, and the request carries no player identity: the server uses the sender the
+        /// transport reports, so one player cannot mark another ready.
+        /// </summary>
+        public void RequestSetReady(bool isReady)
+        {
+            if (!IsSpawned)
+            {
+                return;
+            }
+
+            SetReadyServerRpc(isReady);
+        }
+
+        [ServerRpc(RequireOwnership = false)]
+        private void SetReadyServerRpc(bool isReady, ServerRpcParams parameters = default)
+        {
+            int slot = FindSlotOf(parameters.Receive.SenderClientId);
+            if (slot < 0)
+            {
+                return;
+            }
+
+            _ready[slot].Value = isReady;
+        }
+
+        private void AddMember(ulong clientId)
+        {
+            if (!IsServer || FindSlotOf(clientId) >= 0)
+            {
+                // Already present. Connect and lobby entry can coincide, and adding twice would
+                // put one player in two slots.
+                return;
+            }
+
+            int free = FindSlotOf(EmptySlot);
+            if (free < 0)
+            {
+                // Not a refusal: the connection stands, there is simply no slot to show it in.
+                // Enforcing a crew size is a separate piece of work.
+                GameLog.Warn(LogCategory.Network, $"Client {clientId} joined but the roster has no free slot.");
+                return;
+            }
+
+            _members[free].Value = clientId;
+
+            // A new arrival has not agreed to anything, so a crew that was ready no longer is.
+            _ready[free].Value = false;
+        }
+
+        private void RemoveMember(ulong clientId)
+        {
+            if (!IsServer)
+            {
+                return;
+            }
+
+            int slot = FindSlotOf(clientId);
+            if (slot < 0)
+            {
+                return;
+            }
+
+            _members[slot].Value = EmptySlot;
+            _ready[slot].Value = false;
+        }
+
+        private int FindSlotOf(ulong clientId)
+        {
+            for (int i = 0; i < SlotCount; i++)
+            {
+                if (_members[i].Value == clientId)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        private static bool IsValidSlot(int slot)
+        {
+            return slot >= 0 && slot < SlotCount;
+        }
+
+        private void HandleMemberChanged(ulong previous, ulong current)
+        {
+            RosterChanged?.Invoke();
+        }
+
+        private void HandleReadyChanged(bool previous, bool current)
+        {
+            RosterChanged?.Invoke();
+        }
+    }
+}
