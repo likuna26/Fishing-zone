@@ -1,5 +1,6 @@
 using System;
 using FishingZone.Core;
+using FishingZone.Roles;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -37,6 +38,14 @@ namespace FishingZone.Networking
         private readonly NetworkVariable<bool> _readyC = NewReadySlot();
         private readonly NetworkVariable<bool> _readyD = NewReadySlot();
 
+        // Held as int rather than as the enum, for the same reason the slots above are primitives:
+        // it keeps the wire format to types this project has already proven, and PlayerRole's
+        // explicit values make the conversion stable.
+        private readonly NetworkVariable<int> _roleA = NewRoleSlot();
+        private readonly NetworkVariable<int> _roleB = NewRoleSlot();
+        private readonly NetworkVariable<int> _roleC = NewRoleSlot();
+        private readonly NetworkVariable<int> _roleD = NewRoleSlot();
+
         /// <summary>Raised on every peer whenever membership or readiness changes.</summary>
         public event Action RosterChanged;
 
@@ -51,11 +60,13 @@ namespace FishingZone.Networking
         /// </summary>
         private readonly NetworkVariable<ulong>[] _members;
         private readonly NetworkVariable<bool>[] _ready;
+        private readonly NetworkVariable<int>[] _roles;
 
         public CrewRoster()
         {
             _members = new[] { _memberA, _memberB, _memberC, _memberD };
             _ready = new[] { _readyA, _readyB, _readyC, _readyD };
+            _roles = new[] { _roleA, _roleB, _roleC, _roleD };
         }
 
         private static NetworkVariable<ulong> NewMemberSlot()
@@ -68,12 +79,18 @@ namespace FishingZone.Networking
             return new NetworkVariable<bool>(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
         }
 
+        private static NetworkVariable<int> NewRoleSlot()
+        {
+            return new NetworkVariable<int>((int)PlayerRole.None, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+        }
+
         public override void OnNetworkSpawn()
         {
             for (int i = 0; i < SlotCount; i++)
             {
                 _members[i].OnValueChanged += HandleMemberChanged;
                 _ready[i].OnValueChanged += HandleReadyChanged;
+                _roles[i].OnValueChanged += HandleRoleChanged;
             }
 
             if (IsServer)
@@ -98,6 +115,7 @@ namespace FishingZone.Networking
             {
                 _members[i].OnValueChanged -= HandleMemberChanged;
                 _ready[i].OnValueChanged -= HandleReadyChanged;
+                _roles[i].OnValueChanged -= HandleRoleChanged;
             }
 
             if (IsServer && NetworkManager.Singleton != null)
@@ -120,6 +138,11 @@ namespace FishingZone.Networking
         public bool IsReadyAt(int slot)
         {
             return IsValidSlot(slot) && _ready[slot].Value;
+        }
+
+        public PlayerRole GetRoleAt(int slot)
+        {
+            return IsValidSlot(slot) ? (PlayerRole)_roles[slot].Value : PlayerRole.None;
         }
 
         public bool IsLocalMemberAt(int slot)
@@ -218,6 +241,58 @@ namespace FishingZone.Networking
             _ready[slot].Value = isReady;
         }
 
+        /// <summary>The job this player has chosen, or None if they have not chosen one.</summary>
+        public PlayerRole LocalMemberRole
+        {
+            get
+            {
+                if (NetworkManager.Singleton == null)
+                {
+                    return PlayerRole.None;
+                }
+
+                int slot = FindSlotOf(NetworkManager.Singleton.LocalClientId);
+                return slot >= 0 ? (PlayerRole)_roles[slot].Value : PlayerRole.None;
+            }
+        }
+
+        /// <summary>
+        /// Asks the server to change this player's own role, on exactly the terms readiness uses:
+        /// the request carries no player identity, so the server decides whose role it is from the
+        /// sender the transport reports and nobody can reassign anyone else's job.
+        ///
+        /// Changing role deliberately leaves readiness alone. Picking a job is not agreeing to sail.
+        /// </summary>
+        public void RequestSetRole(PlayerRole role)
+        {
+            if (!IsSpawned)
+            {
+                return;
+            }
+
+            SetRoleServerRpc((int)role);
+        }
+
+        [ServerRpc(RequireOwnership = false)]
+        private void SetRoleServerRpc(int role, ServerRpcParams parameters = default)
+        {
+            int slot = FindSlotOf(parameters.Receive.SenderClientId);
+            if (slot < 0)
+            {
+                return;
+            }
+
+            // The value arrived as a plain integer, so it is checked rather than trusted: anything
+            // outside the enum would otherwise be stored and shown as a nonsense job.
+            if (!Enum.IsDefined(typeof(PlayerRole), role))
+            {
+                GameLog.Warn(LogCategory.Network, $"Client {parameters.Receive.SenderClientId} asked for role {role}, which does not exist.");
+                return;
+            }
+
+            _roles[slot].Value = role;
+        }
+
         private void AddMember(ulong clientId)
         {
             if (!IsServer || FindSlotOf(clientId) >= 0)
@@ -240,6 +315,9 @@ namespace FishingZone.Networking
 
             // A new arrival has not agreed to anything, so a crew that was ready no longer is.
             _ready[free].Value = false;
+
+            // Nor have they picked a job yet, which also clears whatever the slot's last occupant chose.
+            _roles[free].Value = (int)PlayerRole.None;
         }
 
         private void RemoveMember(ulong clientId)
@@ -257,6 +335,7 @@ namespace FishingZone.Networking
 
             _members[slot].Value = EmptySlot;
             _ready[slot].Value = false;
+            _roles[slot].Value = (int)PlayerRole.None;
         }
 
         private int FindSlotOf(ulong clientId)
@@ -283,6 +362,11 @@ namespace FishingZone.Networking
         }
 
         private void HandleReadyChanged(bool previous, bool current)
+        {
+            RosterChanged?.Invoke();
+        }
+
+        private void HandleRoleChanged(int previous, int current)
         {
             RosterChanged?.Invoke();
         }

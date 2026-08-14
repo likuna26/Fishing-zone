@@ -1,5 +1,6 @@
 using FishingZone.Core;
 using FishingZone.Networking;
+using FishingZone.Roles;
 using TMPro;
 using Unity.Netcode;
 using UnityEngine;
@@ -99,6 +100,38 @@ namespace FishingZone.UI
             _crewRoster.RequestSetReady(!_crewRoster.IsLocalMemberReady);
         }
 
+        /// <summary>
+        /// Wired to the NAVIGATOR button's On Click () list. One method per role rather than one
+        /// taking a parameter, because Unity's button list can only pass a value the designer types
+        /// in, and a mistyped number would silently choose the wrong job.
+        /// </summary>
+        public void SelectNavigator()
+        {
+            SelectRole(PlayerRole.Navigator);
+        }
+
+        /// <summary>Wired to the FISHER button's On Click () list.</summary>
+        public void SelectFisher()
+        {
+            SelectRole(PlayerRole.Fisher);
+        }
+
+        /// <summary>Wired to the OBSERVER button's On Click () list.</summary>
+        public void SelectObserver()
+        {
+            SelectRole(PlayerRole.Observer);
+        }
+
+        private void SelectRole(PlayerRole role)
+        {
+            if (_crewRoster == null)
+            {
+                return;
+            }
+
+            _crewRoster.RequestSetRole(role);
+        }
+
         private void Refresh()
         {
             RefreshSlots();
@@ -130,7 +163,7 @@ namespace FishingZone.UI
                     ? $"Crew {_crewRoster.GetMemberAt(i)} (you)"
                     : $"Crew {_crewRoster.GetMemberAt(i)}";
 
-                _slotLabels[i].text = $"{who} - {(_crewRoster.IsReadyAt(i) ? "READY" : "NOT READY")}";
+                _slotLabels[i].text = $"{who} - {_crewRoster.GetRoleAt(i)} - {(_crewRoster.IsReadyAt(i) ? "READY" : "NOT READY")}";
             }
         }
 
