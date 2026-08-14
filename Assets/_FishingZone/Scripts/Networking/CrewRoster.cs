@@ -40,8 +40,23 @@ namespace FishingZone.Networking
         /// <summary>Raised on every peer whenever membership or readiness changes.</summary>
         public event Action RosterChanged;
 
-        private NetworkVariable<ulong>[] _members;
-        private NetworkVariable<bool>[] _ready;
+        /// <summary>
+        /// Built here rather than in Awake. Unity gives no ordering guarantee between one object's
+        /// Awake and another object's OnEnable, so the lobby UI could ask about the crew before this
+        /// component had woken up and every accessor below would dereference null. A field
+        /// initializer runs during construction, which nothing else on the scene can precede.
+        ///
+        /// Declared after the slots on purpose: initializers run top to bottom, so the four fields
+        /// already exist by the time these arrays reference them.
+        /// </summary>
+        private readonly NetworkVariable<ulong>[] _members;
+        private readonly NetworkVariable<bool>[] _ready;
+
+        public CrewRoster()
+        {
+            _members = new[] { _memberA, _memberB, _memberC, _memberD };
+            _ready = new[] { _readyA, _readyB, _readyC, _readyD };
+        }
 
         private static NetworkVariable<ulong> NewMemberSlot()
         {
@@ -51,14 +66,6 @@ namespace FishingZone.Networking
         private static NetworkVariable<bool> NewReadySlot()
         {
             return new NetworkVariable<bool>(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
-        }
-
-        private void Awake()
-        {
-            // Gathered into arrays only after the fields exist, because Netcode discovers network
-            // variables by reflecting over the declared fields.
-            _members = new[] { _memberA, _memberB, _memberC, _memberD };
-            _ready = new[] { _readyA, _readyB, _readyC, _readyD };
         }
 
         public override void OnNetworkSpawn()
@@ -172,7 +179,14 @@ namespace FishingZone.Networking
         {
             get
             {
-                int slot = FindSlotOf(NetworkManager.Singleton != null ? NetworkManager.Singleton.LocalClientId : EmptySlot);
+                if (NetworkManager.Singleton == null)
+                {
+                    return false;
+                }
+
+                // Not folded into a single expression with a fallback of EmptySlot: that would match
+                // the first empty slot and report its flag as though it were this player's.
+                int slot = FindSlotOf(NetworkManager.Singleton.LocalClientId);
                 return slot >= 0 && _ready[slot].Value;
             }
         }
