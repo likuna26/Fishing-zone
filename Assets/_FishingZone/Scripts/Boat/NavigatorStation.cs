@@ -1,6 +1,7 @@
 using FishingZone.Core;
 using FishingZone.Core.Input;
 using FishingZone.Player;
+using FishingZone.Roles;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -163,6 +164,14 @@ namespace FishingZone.Boat
         private void RequestOccupyServerRpc(ServerRpcParams parameters = default)
         {
             ulong requester = parameters.Receive.SenderClientId;
+
+            // Checked before availability, because being the wrong job is a firmer refusal than the
+            // wheel merely being busy, and it makes the log say which of the two happened.
+            if (!IsNavigator(requester))
+            {
+                GameLog.Info(LogCategory.Network, $"Refused the wheel to client {requester}: only the Navigator steers.");
+                return;
+            }
 
             if (IsOccupied)
             {
@@ -337,6 +346,25 @@ namespace FishingZone.Boat
                 _localSeatedPlayer.Release();
                 _localSeatedPlayer = null;
             }
+        }
+
+        /// <summary>
+        /// Roles come from the persistent registry rather than the lobby roster, which no longer
+        /// exists once a mission is under way.
+        ///
+        /// A missing registry is treated as permission rather than refusal. Losing the ability to
+        /// steer because a component was never attached would be a far worse failure than a role
+        /// going unchecked, and ServiceRegistry logs the miss loudly either way.
+        /// </summary>
+        private static bool IsNavigator(ulong clientId)
+        {
+            CrewRoleRegistry registry = ServiceRegistry.Get<CrewRoleRegistry>();
+            if (registry == null)
+            {
+                return true;
+            }
+
+            return registry.GetRole(clientId) == PlayerRole.Navigator;
         }
     }
 }

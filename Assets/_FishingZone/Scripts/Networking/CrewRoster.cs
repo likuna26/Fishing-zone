@@ -291,6 +291,27 @@ namespace FishingZone.Networking
             }
 
             _roles[slot].Value = role;
+
+            // Mirrored into the registry, which is what the wheel will consult once the lobby has
+            // been unloaded and this component no longer exists.
+            MirrorRoleToRegistry(parameters.Receive.SenderClientId, (PlayerRole)role);
+        }
+
+        /// <summary>
+        /// Copies an accepted role into the persistent store. Deliberately only ever writes: the
+        /// registry forgets a role on disconnect and on nothing else, so this component being torn
+        /// down with the Lobby scene cannot take a chosen Navigator's role with it.
+        /// </summary>
+        private static void MirrorRoleToRegistry(ulong clientId, PlayerRole role)
+        {
+            CrewRoleRegistry registry = ServiceRegistry.Get<CrewRoleRegistry>();
+            if (registry == null)
+            {
+                // ServiceRegistry has already logged the miss.
+                return;
+            }
+
+            registry.SetRole(clientId, role);
         }
 
         private void AddMember(ulong clientId)
@@ -318,6 +339,11 @@ namespace FishingZone.Networking
 
             // Nor have they picked a job yet, which also clears whatever the slot's last occupant chose.
             _roles[free].Value = (int)PlayerRole.None;
+
+            // Kept in step with the slot, so a crew that comes back to the lobby chooses again
+            // rather than silently carrying the last mission's jobs, and so what the roster shows is
+            // always what the registry will enforce. This runs on joining, never on unloading.
+            MirrorRoleToRegistry(clientId, PlayerRole.None);
         }
 
         private void RemoveMember(ulong clientId)
