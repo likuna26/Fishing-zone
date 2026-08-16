@@ -71,9 +71,14 @@ namespace FishingZone.UI
                 return;
             }
 
-            if (_crewRoster != null && !_crewRoster.AllReady)
+            if (_crewRoster != null && !_crewRoster.CanStartMission)
             {
-                GameLog.Warn(LogCategory.Network, "Ignored Start Mission: the crew is not all ready.");
+                // Which of the two conditions failed, because "nothing happened" is a poor answer
+                // when the fix is different in each case. Readiness is reported first when both are
+                // outstanding, since it is the one the crew is usually working on.
+                GameLog.Warn(LogCategory.Network, _crewRoster.AllReady
+                    ? "Ignored Start Mission: the crew has no Navigator."
+                    : "Ignored Start Mission: the crew is not all ready.");
                 return;
             }
 
@@ -187,7 +192,10 @@ namespace FishingZone.UI
                 return;
             }
 
-            _startButton.interactable = IsLocalPlayerHost() && _crewRoster != null && _crewRoster.AllReady;
+            // The same rule the method enforces, so the button can never invite a press that would
+            // then be refused. Re-evaluated on every RosterChanged, which fires for role changes and
+            // for members leaving, so losing the last Navigator disables this at once.
+            _startButton.interactable = IsLocalPlayerHost() && _crewRoster != null && _crewRoster.CanStartMission;
         }
 
         /// <summary>

@@ -198,6 +198,35 @@ namespace FishingZone.Networking
             }
         }
 
+        /// <summary>
+        /// Whether anybody in the crew has taken the wheel's job. Read from the slots rather than
+        /// from the persistent role registry on purpose: the question is about who is in this lobby
+        /// right now, and the slots are what empty on disconnect and change as people choose.
+        /// </summary>
+        public bool HasNavigator
+        {
+            get
+            {
+                for (int i = 0; i < SlotCount; i++)
+                {
+                    if (IsSlotOccupied(i) && (PlayerRole)_roles[i].Value == PlayerRole.Navigator)
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// The whole rule for whether the crew may set off, kept here rather than in the menu so the
+        /// button is only ever reporting a decision the server-owned roster has already made.
+        ///
+        /// Without a Navigator the crew would arrive at a boat none of them is allowed to steer.
+        /// </summary>
+        public bool CanStartMission => AllReady && HasNavigator;
+
         public bool IsLocalMemberReady
         {
             get
