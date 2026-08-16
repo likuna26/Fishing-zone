@@ -32,6 +32,19 @@ namespace FishingZone.UI
         [SerializeField]
         private Button _startButton;
 
+        // The three role buttons, so a job the crew has filled can stop inviting a press that the
+        // server would only refuse. Every one of these may be left unassigned: the buttons then
+        // simply stay enabled and the server does the refusing on its own, which is the arrangement
+        // that held before they existed.
+        [SerializeField]
+        private Button _navigatorButton;
+
+        [SerializeField]
+        private Button _fisherButton;
+
+        [SerializeField]
+        private Button _observerButton;
+
         [SerializeField]
         private string _emptySlotText = "Empty";
 
@@ -141,6 +154,7 @@ namespace FishingZone.UI
         {
             RefreshSlots();
             RefreshReadyButton();
+            RefreshRoleButtons();
             RefreshStartButton();
         }
 
@@ -183,6 +197,34 @@ namespace FishingZone.UI
             {
                 _readyButton.interactable = _crewRoster != null && _crewRoster.MemberCount > 0;
             }
+        }
+
+        /// <summary>
+        /// Greys out the jobs the crew has already filled.
+        ///
+        /// Re-evaluated on every RosterChanged, which fires on every peer whenever any slot's role
+        /// changes, so a job released by one player becomes available on everybody else's screen in
+        /// the same moment rather than after a press that fails.
+        ///
+        /// A player's own job is never greyed out, because pressing it again is how they let it go.
+        /// </summary>
+        private void RefreshRoleButtons()
+        {
+            RefreshRoleButton(_navigatorButton, PlayerRole.Navigator);
+            RefreshRoleButton(_fisherButton, PlayerRole.Fisher);
+            RefreshRoleButton(_observerButton, PlayerRole.Observer);
+        }
+
+        private void RefreshRoleButton(Button button, PlayerRole role)
+        {
+            if (button == null)
+            {
+                return;
+            }
+
+            // The roster answers this, rather than the menu counting roles for itself. One rule with
+            // one implementation cannot drift out of step with the server's version of it.
+            button.interactable = _crewRoster == null || _crewRoster.CanLocalMemberTake(role);
         }
 
         private void RefreshStartButton()

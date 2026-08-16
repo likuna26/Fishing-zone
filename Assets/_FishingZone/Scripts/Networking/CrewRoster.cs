@@ -199,24 +199,77 @@ namespace FishingZone.Networking
         }
 
         /// <summary>
+        /// How many of one job a crew may carry: one Navigator, two Fishers, one Observer.
+        ///
+        /// None is not a job but the absence of one, so it is uncapped. Capping it would be
+        /// incoherent as well as unhelpful, since it is the value every slot starts at and the value
+        /// a joining player is given, neither of which passes through a request that could be refused.
+        /// SlotCount is the true bound rather than a cap: a crew can never hold more members than it
+        /// has slots, so this can never turn anyone away from giving up their job.
+        ///
+        /// Written as a table rather than as a condition per role so the whole crew composition can
+        /// be read in one place, and so adding a job later is one line rather than a new branch
+        /// wherever capacity happens to be checked.
+        /// </summary>
+        private static int GetRoleCapacity(PlayerRole role)
+        {
+            switch (role)
+            {
+                case PlayerRole.Navigator:
+                    return 1;
+                case PlayerRole.Fisher:
+                    return 2;
+                case PlayerRole.Observer:
+                    return 1;
+                default:
+                    return SlotCount;
+            }
+        }
+
+        /// <summary>
+        /// How many crew currently hold one job.
+        ///
+        /// Only occupied slots count. An empty slot is reset to None when its occupant leaves, so
+        /// skipping it changes no answer today; it is checked anyway so that the count describes
+        /// people rather than storage, and cannot start lying if a slot is ever left dirty.
+        /// </summary>
+        public int CountRole(PlayerRole role)
+        {
+            int count = 0;
+
+            for (int i = 0; i < SlotCount; i++)
+            {
+                if (IsSlotOccupied(i) && (PlayerRole)_roles[i].Value == role)
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
+        /// <summary>
         /// Whether anybody in the crew has taken the wheel's job. Read from the slots rather than
         /// from the persistent role registry on purpose: the question is about who is in this lobby
         /// right now, and the slots are what empty on disconnect and change as people choose.
         /// </summary>
-        public bool HasNavigator
-        {
-            get
-            {
-                for (int i = 0; i < SlotCount; i++)
-                {
-                    if (IsSlotOccupied(i) && (PlayerRole)_roles[i].Value == PlayerRole.Navigator)
-                    {
-                        return true;
-                    }
-                }
+        public bool HasNavigator => CountRole(PlayerRole.Navigator) > 0;
 
-                return false;
-            }
+        /// <summary>
+        /// Whether this player could press that role's button to any effect right now.
+        ///
+        /// Their own current job always reads as available, because pressing it again is how they
+        /// give it up: a full role must never lock its own holder out of releasing it. Everyone else
+        /// sees a full role as unavailable.
+        ///
+        /// Answered from the replicated slots, so a client is reading the server's decision rather
+        /// than predicting it. This is a courtesy for the buttons and nothing more; the rule that
+        /// actually binds lives in <see cref="SetRoleServerRpc"/>, which refuses a client that asks
+        /// anyway.
+        /// </summary>
+        public bool CanLocalMemberTake(PlayerRole role)
+        {
+            return role == LocalMemberRole || CountRole(role) < GetRoleCapacity(role);
         }
 
         /// <summary>
@@ -290,6 +343,11 @@ namespace FishingZone.Networking
         /// the request carries no player identity, so the server decides whose role it is from the
         /// sender the transport reports and nobody can reassign anyone else's job.
         ///
+        /// Asking for the job you already hold gives it up rather than doing nothing, which is the
+        /// only way out of a crew that has filled every job: the three capacities add up to exactly
+        /// the four seats, so at a full composition every other role is unavailable to everybody and
+        /// releasing is the sole move left.
+        ///
         /// Changing role deliberately leaves readiness alone. Picking a job is not agreeing to sail.
         /// </summary>
         public void RequestSetRole(PlayerRole role)
@@ -311,19 +369,43 @@ namespace FishingZone.Networking
                 return;
             }
 
+            ulong senderId = parameters.Receive.SenderClientId;
+
             // The value arrived as a plain integer, so it is checked rather than trusted: anything
             // outside the enum would otherwise be stored and shown as a nonsense job.
             if (!Enum.IsDefined(typeof(PlayerRole), role))
             {
-                GameLog.Warn(LogCategory.Network, $"Client {parameters.Receive.SenderClientId} asked for role {role}, which does not exist.");
+                GameLog.Warn(LogCategory.Network, $"Client {senderId} asked for role {role}, which does not exist.");
                 return;
             }
 
-            _roles[slot].Value = role;
+            PlayerRole requested = (PlayerRole)role;
+            PlayerRole current = (PlayerRole)_roles[slot].Value;
+
+            if (requested == current)
+            {
+                // Resolved before capacity is consulted, and not merely as a tidiness: someone
+                // holding one of two Fisher places is themselves part of the count that would refuse
+                // them, so checking capacity first would deny a player their own job.
+                requested = PlayerRole.None;
+            }
+            else if (CountRole(requested) >= GetRoleCapacity(requested))
+            {
+                // Refused by returning before anything is written, rather than by writing and
+                // undoing. The role variable is never touched, so it never replicates, no peer sees
+                // a moment of None, and the registry below is never reached: this player keeps the
+                // job they had, in the roster and in the persistent store alike.
+                GameLog.Info(LogCategory.Network, $"Refused {requested} to client {senderId}: the crew already has {CountRole(requested)}. Keeping {current}.");
+                return;
+            }
+
+            _roles[slot].Value = (int)requested;
 
             // Mirrored into the registry, which is what the wheel will consult once the lobby has
-            // been unloaded and this component no longer exists.
-            MirrorRoleToRegistry(parameters.Receive.SenderClientId, (PlayerRole)role);
+            // been unloaded and this component no longer exists. Only accepted changes reach here,
+            // and a release is an accepted change like any other: giving up Navigator has to reach
+            // the registry, or the wheel would still answer to somebody who no longer steers.
+            MirrorRoleToRegistry(senderId, requested);
         }
 
         /// <summary>
