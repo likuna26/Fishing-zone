@@ -156,6 +156,7 @@ GameObject:
   - component: {fileID: 1055200100049784535}
   - component: {fileID: 8758496995979696825}
   - component: {fileID: -4077829809129546071}
+  - component: {fileID: 2956049101282670459}
   m_Layer: 0
   m_Name: PlayerRoot
   m_TagString: Untagged
@@ -400,6 +401,20 @@ MonoBehaviour:
   - {fileID: 8561441561842563011}
   _ownerOnlyObjects:
   - {fileID: 1423352739452476519}
+  _characterController: {fileID: 0}
+--- !u!114 &2956049101282670459
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2245095535710297617}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a100000000000000000000000000002a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FishingZone::FishingZone.Roles.PlayerRoleController
+  ShowTopMostFoldoutHeaderGroup: 1
 --- !u!1 &3716633819390131977
 GameObject:
   m_ObjectHideFlags: 0
