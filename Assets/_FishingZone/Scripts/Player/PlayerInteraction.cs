@@ -63,6 +63,27 @@ namespace FishingZone.Player
             FocusChanged?.Invoke(target);
         }
 
+
+        /// <summary>
+        /// Announces the current target again without changing it, so its prompt is asked for a
+        /// second time.
+        ///
+        /// Needed because prompt text is read once, when the focus is acquired: the ray runs every
+        /// frame but a target that has not changed raises nothing, and the words on screen are
+        /// whatever they were when the player first looked. That is fine for a prompt that depends
+        /// only on who is reading it, and wrong for one that depends on something replicated, which
+        /// can change while the player stands perfectly still — a station being claimed by somebody
+        /// else, say. Such an interactable calls this when its state arrives.
+        ///
+        /// Safe at any time. It re-raises an event with the value already held, so a null target
+        /// simply hides a prompt that is already hidden.
+        /// </summary>
+        public void RefreshFocus()
+        {
+            FocusChanged?.Invoke(CurrentTarget);
+        }
+
+        /// <summary>Releases a capture. Ignored if something else holds it.</summary>
         public void ReleaseFocus(IInteractable target)
         {
             if (!ReferenceEquals(_capturedTarget, target))
