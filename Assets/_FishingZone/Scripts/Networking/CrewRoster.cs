@@ -210,8 +210,12 @@ namespace FishingZone.Networking
         /// Written as a table rather than as a condition per role so the whole crew composition can
         /// be read in one place, and so adding a job later is one line rather than a new branch
         /// wherever capacity happens to be checked.
+        ///
+        /// Public so the lobby can draw one indicator per place a job has, rather than keeping its
+        /// own copy of these numbers and quietly disagreeing with the server the day they change.
+        /// Static, so the count is known even before this component has spawned.
         /// </summary>
-        private static int GetRoleCapacity(PlayerRole role)
+        public static int GetRoleCapacity(PlayerRole role)
         {
             switch (role)
             {

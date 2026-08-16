@@ -45,6 +45,33 @@ namespace FishingZone.UI
         [SerializeField]
         private Button _observerButton;
 
+        // One label per role, each drawing a mark for every place that job has: one for Navigator,
+        // two for Fisher, one for Observer. They say how full a job is, never who filled it, so the
+        // same text is correct on every screen and nothing here needs to know which player is local.
+        // All three are optional, like the buttons above.
+        [SerializeField]
+        private TMP_Text _navigatorSlots;
+
+        [SerializeField]
+        private TMP_Text _fisherSlots;
+
+        [SerializeField]
+        private TMP_Text _observerSlots;
+
+        // Serialized rather than written into the code because the two obvious choices are outside
+        // the character range a static font atlas usually carries, and a missing glyph renders as a
+        // box. Being able to type an ASCII pair straight into the Inspector turns that from a
+        // recompile into a moment's work, and lets the marks be restyled without touching this file.
+        [SerializeField]
+        private string _filledSlotSymbol = "✓";
+
+        [SerializeField]
+        private string _emptySlotSymbol = "○";
+
+        /// <summary>Placed between marks, so two of them read as two rather than as one wide one.</summary>
+        [SerializeField]
+        private string _slotSymbolSeparator = " ";
+
         [SerializeField]
         private string _emptySlotText = "Empty";
 
@@ -156,6 +183,10 @@ namespace FishingZone.UI
             RefreshReadyButton();
             RefreshRoleButtons();
             RefreshStartButton();
+
+            // Last on purpose. Everything above decides what a player may do; this only describes
+            // it. Were it to fail, it must not take the START button's state down with it.
+            RefreshRoleOccupancy();
         }
 
         private void RefreshSlots()
@@ -225,6 +256,64 @@ namespace FishingZone.UI
             // The roster answers this, rather than the menu counting roles for itself. One rule with
             // one implementation cannot drift out of step with the server's version of it.
             button.interactable = _crewRoster == null || _crewRoster.CanLocalMemberTake(role);
+        }
+
+        /// <summary>
+        /// Draws how full each job is: one mark beside NAVIGATOR and OBSERVER, two beside FISHER,
+        /// each shown filled or empty.
+        ///
+        /// Refreshed from the same RosterChanged every other part of this screen listens to, so a
+        /// job somebody gives up shows as free on everyone's screen in the same moment, without this
+        /// class watching anything or asking anybody.
+        /// </summary>
+        private void RefreshRoleOccupancy()
+        {
+            RefreshRoleOccupancy(_navigatorSlots, PlayerRole.Navigator);
+            RefreshRoleOccupancy(_fisherSlots, PlayerRole.Fisher);
+            RefreshRoleOccupancy(_observerSlots, PlayerRole.Observer);
+        }
+
+        private void RefreshRoleOccupancy(TMP_Text label, PlayerRole role)
+        {
+            if (label == null)
+            {
+                return;
+            }
+
+            label.text = BuildOccupancy(role);
+        }
+
+        /// <summary>
+        /// One mark per place the job has, filled from the left.
+        ///
+        /// Both numbers come from the roster: the marks are how many places exist, and the filled
+        /// ones are how many crew hold the job right now. Neither is written down here, so the
+        /// display cannot end up describing a composition the server has stopped enforcing.
+        ///
+        /// A crew that has not loaded yet reads as nobody rather than as an empty string, since how
+        /// many places a job has is knowable before anyone has taken one.
+        ///
+        /// Built by plain concatenation: this runs when the roster changes, which is a few times
+        /// while a crew assembles, and never once a frame.
+        /// </summary>
+        private string BuildOccupancy(PlayerRole role)
+        {
+            int capacity = CrewRoster.GetRoleCapacity(role);
+            int filled = _crewRoster == null ? 0 : _crewRoster.CountRole(role);
+
+            string text = string.Empty;
+
+            for (int i = 0; i < capacity; i++)
+            {
+                if (i > 0)
+                {
+                    text += _slotSymbolSeparator;
+                }
+
+                text += i < filled ? _filledSlotSymbol : _emptySlotSymbol;
+            }
+
+            return text;
         }
 
         private void RefreshStartButton()
