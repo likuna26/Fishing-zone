@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using FishingZone.Core;
 using Unity.Netcode;
 using UnityEngine;
@@ -18,13 +19,26 @@ namespace FishingZone.Networking
     public class SessionManager : MonoBehaviour
     {
         /// <summary>
-        /// Crew size the design locks at one to four. Enforced here rather than through connection
-        /// approval so that nothing about the NetworkManager's configuration has to change: a
-        /// mis-set approval flag refuses every connection, which is a far worse failure than a
-        /// fifth player being turned away a moment late.
+        /// Total participants a crew may hold, the host included: four people, not four guests of a
+        /// host. Enforced here rather than through connection approval so that nothing about the
+        /// NetworkManager's configuration has to change: a mis-set approval flag refuses every
+        /// connection, which is a far worse failure than a fifth player being turned away a moment late.
         /// </summary>
         [SerializeField]
         private int _maxCrewSize = 4;
+
+        /// <summary>
+        /// Who the server has accepted into this crew, the host included. Server-side only; a client
+        /// never fills this in and must never be asked about it.
+        ///
+        /// This exists because <see cref="NetworkManager.ConnectedClientsIds"/> cannot answer the
+        /// question the crew limit is really asking. That list is a live view of the transport, and
+        /// during a networked scene load it holds clients in mixed states while they resynchronise,
+        /// so its count rises and falls for reasons that have nothing to do with anyone joining.
+        /// Admission, by contrast, happens exactly once per player and never changes until they
+        /// leave, which is the property the limit needs.
+        /// </summary>
+        private readonly HashSet<ulong> _admittedClientIds = new HashSet<ulong>();
 
         public bool IsSessionActive => NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening;
 
@@ -37,7 +51,10 @@ namespace FishingZone.Networking
         {
             if (NetworkManager.Singleton != null)
             {
+                NetworkManager.Singleton.OnServerStarted += AdmitHost;
                 NetworkManager.Singleton.OnClientConnectedCallback += EnforceCrewSize;
+                NetworkManager.Singleton.OnClientDisconnectCallback += ForgetAdmission;
+                NetworkManager.Singleton.OnServerStopped += ForgetEveryAdmission;
             }
         }
 
@@ -45,14 +62,43 @@ namespace FishingZone.Networking
         {
             if (NetworkManager.Singleton != null)
             {
+                NetworkManager.Singleton.OnServerStarted -= AdmitHost;
                 NetworkManager.Singleton.OnClientConnectedCallback -= EnforceCrewSize;
+                NetworkManager.Singleton.OnClientDisconnectCallback -= ForgetAdmission;
+                NetworkManager.Singleton.OnServerStopped -= ForgetEveryAdmission;
             }
         }
 
         /// <summary>
-        /// Turns away anyone beyond the crew limit. Only the arrival is considered, so the players
-        /// already aboard are never disturbed, and a seat freed by someone leaving is immediately
-        /// available again because the count simply drops.
+        /// The host occupies one of the four seats, so it is admitted the moment the session opens
+        /// rather than being treated as free overhead on top of the limit.
+        ///
+        /// A dedicated server is not a participant and takes no seat, which is why this asks for a
+        /// host specifically. Adding an id already present costs nothing, so this may be called as
+        /// often as it likes.
+        /// </summary>
+        private void AdmitHost()
+        {
+            if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsHost)
+            {
+                return;
+            }
+
+            _admittedClientIds.Add(NetworkManager.Singleton.LocalClientId);
+        }
+
+        /// <summary>
+        /// Turns away anyone arriving beyond the crew limit, and no one else.
+        ///
+        /// The rule is admission, not counting: a client the server has already accepted is simply
+        /// acknowledged again and left alone. That matters because this callback is not raised once
+        /// per player. Netcode also raises it as clients resynchronise, which a networked scene load
+        /// does to the whole crew at once, and an earlier version of this method read the live
+        /// connected-client count on each of those and evicted players who had already arrived,
+        /// spawned and started playing.
+        ///
+        /// A seat freed by someone leaving is immediately available again, because their admission
+        /// is dropped the moment they disconnect.
         /// </summary>
         private void EnforceCrewSize(ulong clientId)
         {
@@ -61,19 +107,49 @@ namespace FishingZone.Networking
                 return;
             }
 
-            // The host is a client of its own session and must never be the one shown the door.
-            if (clientId == NetworkManager.Singleton.LocalClientId)
+            // Done here as well as on OnServerStarted, because the host's own connection callback
+            // can arrive before that event depending on how the session was opened, and a host that
+            // had not yet been admitted would otherwise be counted twice or turned away.
+            AdmitHost();
+
+            if (_admittedClientIds.Contains(clientId))
+            {
+                // Already crew. This is a resynchronisation, not an arrival.
+                return;
+            }
+
+            if (_admittedClientIds.Count >= _maxCrewSize)
+            {
+                GameLog.Warn(LogCategory.Network, $"Crew is full at {_maxCrewSize}; turning away client {clientId}.");
+                NetworkManager.Singleton.DisconnectClient(clientId);
+                return;
+            }
+
+            _admittedClientIds.Add(clientId);
+            GameLog.Info(LogCategory.Network, $"Admitted client {clientId} to the crew ({_admittedClientIds.Count}/{_maxCrewSize}).");
+        }
+
+        /// <summary>
+        /// Frees a seat. Only a real disconnect reaches here, which is what stops a scene change or
+        /// a resynchronisation from quietly shrinking the crew.
+        /// </summary>
+        private void ForgetAdmission(ulong clientId)
+        {
+            if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer)
             {
                 return;
             }
 
-            if (NetworkManager.Singleton.ConnectedClientsIds.Count <= _maxCrewSize)
+            if (_admittedClientIds.Remove(clientId))
             {
-                return;
+                GameLog.Info(LogCategory.Network, $"Freed the seat of client {clientId} ({_admittedClientIds.Count}/{_maxCrewSize}).");
             }
+        }
 
-            GameLog.Warn(LogCategory.Network, $"Crew is full at {_maxCrewSize}; turning away client {clientId}.");
-            NetworkManager.Singleton.DisconnectClient(clientId);
+        /// <summary>Ending the session empties the crew, so the next one never starts partly full.</summary>
+        private void ForgetEveryAdmission(bool wasHost)
+        {
+            _admittedClientIds.Clear();
         }
 
         /// <summary>Set while trading a host session for a client one, so the swap cannot overlap itself.</summary>

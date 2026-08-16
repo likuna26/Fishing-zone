@@ -58,10 +58,23 @@ namespace FishingZone.Networking
             GameLog.Info(LogCategory.Network, $"{who} connected. Connected clients: {_networkManager.ConnectedClientsIds.Count}");
         }
 
+        /// <summary>
+        /// Deliberately reports no client count.
+        ///
+        /// The count used to be printed here and was worse than useless: this runs before the
+        /// departing client has been removed from the list, and on a client that is itself
+        /// disconnecting the list is a mirror of server state that is no longer being maintained.
+        /// The number it produced was therefore always at least one too high, and a disconnect that
+        /// cheerfully reported four connected clients sent a whole investigation down the wrong path.
+        ///
+        /// Which peer is speaking is logged instead, because "the server saw someone leave" and
+        /// "we were thrown out" read identically otherwise and mean entirely different things.
+        /// </summary>
         private void HandleClientDisconnected(ulong clientId)
         {
             string who = clientId == _networkManager.LocalClientId ? "Local client" : $"Client {clientId}";
-            GameLog.Info(LogCategory.Network, $"{who} disconnected. Connected clients: {_networkManager.ConnectedClientsIds.Count}");
+            string peer = _networkManager.IsServer ? "server" : "client";
+            GameLog.Info(LogCategory.Network, $"{who} disconnected, as seen by the {peer}.");
         }
     }
 }
