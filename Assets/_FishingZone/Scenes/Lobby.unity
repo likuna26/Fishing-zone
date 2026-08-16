@@ -975,6 +975,9 @@ MonoBehaviour:
   _readyButton: {fileID: 900887383}
   _readyButtonLabel: {fileID: 214564850}
   _startButton: {fileID: 1529986555}
+  _navigatorButton: {fileID: 1757079805}
+  _fisherButton: {fileID: 909161639}
+  _observerButton: {fileID: 1470139945}
   _emptySlotText: Empty
 --- !u!1 &886493248
 GameObject:
