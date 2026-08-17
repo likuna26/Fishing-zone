@@ -51,6 +51,30 @@ namespace FishingZone.Fishing
         [SerializeField]
         private string _busyFishingText = "Someone has a line out here";
 
+        /// <summary>
+        /// Keeps the way out in view. A Fisher who cannot yet answer a bite would otherwise be told
+        /// something is happening and not how to stop it.
+        /// </summary>
+        [SerializeField]
+        private string _biteText = "Something is biting! Release to stop, or leave the station";
+
+        /// <summary>What makes a bite visible to the rest of the crew rather than only to its Fisher.</summary>
+        [SerializeField]
+        private string _busyBiteText = "Someone has a bite here";
+
+        /// <summary>
+        /// How long a cast waits before something takes an interest, drawn afresh each time.
+        ///
+        /// A range rather than a fixed wait, because two Fishers casting together would otherwise
+        /// bite in step, which looks like shared state whether or not it is. Serialized so the feel
+        /// can be tuned without a recompile, as the hull's handling already is.
+        /// </summary>
+        [SerializeField]
+        private float _minBiteDelay = 3f;
+
+        [SerializeField]
+        private float _maxBiteDelay = 10f;
+
         [SerializeField]
         private string _wrongRoleText = "Only the Fisher may fish here";
 
@@ -86,6 +110,19 @@ namespace FishingZone.Fishing
         /// never switch off input it did not switch on.
         /// </summary>
         private bool _ownsLocalFishingInput;
+
+        /// <summary>
+        /// How much longer this station's cast waits, counted down by the server alone.
+        ///
+        /// Deliberately not replicated. A client that knew when the bite was coming could act on it
+        /// before it arrived, which is exactly what answering a bite will one day have to be
+        /// protected from. Everyone learns of a bite when it happens and not a frame sooner.
+        ///
+        /// Nothing has to clear it. It is read only while this station is waiting, so every way a
+        /// cast can end already stops it by setting the phase, and there is no scheduled callback
+        /// left in flight to arrive at an empty station later.
+        /// </summary>
+        private float _biteCountdown;
 
         private bool IsLocalOccupant =>
             NetworkManager.Singleton != null && _occupantClientId.Value == NetworkManager.Singleton.LocalClientId;
@@ -158,14 +195,30 @@ namespace FishingZone.Fishing
                 return _fishText;
             }
 
-            bool isWaiting = Phase == FishingPhase.Waiting;
+            FishingPhase phase = Phase;
 
             if (IsLocalOccupant)
             {
-                return isWaiting ? _stopFishText : _occupiedText;
+                switch (phase)
+                {
+                    case FishingPhase.Bite:
+                        return _biteText;
+                    case FishingPhase.Waiting:
+                        return _stopFishText;
+                    default:
+                        return _occupiedText;
+                }
             }
 
-            return isWaiting ? _busyFishingText : _busyText;
+            switch (phase)
+            {
+                case FishingPhase.Bite:
+                    return _busyBiteText;
+                case FishingPhase.Waiting:
+                    return _busyFishingText;
+                default:
+                    return _busyText;
+            }
         }
 
         /// <summary>
@@ -196,20 +249,70 @@ namespace FishingZone.Fishing
         }
 
         /// <summary>
-        /// Cast begins, Release ends. Read only by the peer holding this station, so the three other
-        /// copies of this component do nothing at all.
+        /// Two unrelated jobs on two unrelated conditions.
         ///
-        /// Neither press is filtered by the phase this machine believes it is in. Asking to start
-        /// while already fishing is refused by the server and logged there, which is worth more than
-        /// the message it saves.
+        /// The server watches every station, whoever is standing at it, because a bite is its
+        /// decision to make and the Fisher waiting for one is usually on another machine. Reading
+        /// the controls is the opposite: only the peer holding this station does that, so the three
+        /// other copies of this component read nothing at all.
+        ///
+        /// On the host both are true at once and both run, which is correct: it is the server, and
+        /// its player may also be the one holding the rod.
         /// </summary>
         private void Update()
         {
-            if (!IsSpawned || !IsLocalOccupant)
+            if (!IsSpawned)
             {
                 return;
             }
 
+            if (IsServer)
+            {
+                TickBite();
+            }
+
+            if (IsLocalOccupant)
+            {
+                PollFishingInput();
+            }
+        }
+
+        /// <summary>
+        /// Brings the cast to something, once the wait this station drew for itself has run out.
+        ///
+        /// Server only. The countdown is consulted just here, and only while waiting, so a cast that
+        /// was reeled in, walked away from or disconnected out from under simply stops being counted
+        /// rather than needing to be called off. That is why there is no cancellation anywhere in
+        /// this file: there is nothing pending that could arrive late.
+        /// </summary>
+        private void TickBite()
+        {
+            if (Phase != FishingPhase.Waiting)
+            {
+                return;
+            }
+
+            _biteCountdown -= Time.deltaTime;
+            if (_biteCountdown > 0f)
+            {
+                return;
+            }
+
+            SetPhaseOnServer(FishingPhase.Bite);
+
+            GameLog.Info(LogCategory.Fish,
+                $"Something bit at '{name}' for client {_occupantClientId.Value}.");
+        }
+
+        /// <summary>
+        /// Cast begins, Release ends.
+        ///
+        /// Neither press is filtered by the phase this machine believes it is in. Asking to start
+        /// while a line is already out is refused by the server and logged there, which is worth
+        /// more than the message it saves.
+        /// </summary>
+        private void PollFishingInput()
+        {
             if (_castAction != null && _castAction.action.WasPressedThisFrame())
             {
                 RequestStartFishingServerRpc();
@@ -346,6 +449,10 @@ namespace FishingZone.Fishing
                     $"Refused client {senderId} fishing at '{name}': already {Phase}.");
                 return;
             }
+
+            // Drawn here rather than kept, so each cast waits its own length and an abandoned one
+            // leaves nothing behind for the next to inherit.
+            _biteCountdown = Random.Range(_minBiteDelay, _maxBiteDelay);
 
             SetPhaseOnServer(FishingPhase.Waiting);
 

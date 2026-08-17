@@ -25,6 +25,13 @@ namespace FishingZone.Fishing
         Idle = 0,
 
         /// <summary>A Fisher holds this station and has cast. The line is out and nothing has happened yet.</summary>
-        Waiting = 1
+        Waiting = 1,
+
+        /// <summary>
+        /// A fish is at the line here, now. Says nothing about whether it can be hooked, held or
+        /// lost: those are separate things that need words of their own, and inventing them before
+        /// the mechanics exist would be guessing at what they mean.
+        /// </summary>
+        Bite = 2
     }
 }
