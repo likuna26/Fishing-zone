@@ -124,14 +124,6 @@ namespace FishingZone.Fishing
         /// </summary>
         private float _biteCountdown;
 
-        /// <summary>
-        /// Diagnostic only. A cast is accepted and the phase reaches every peer, so the server both
-        /// armed the wait and holds the right phase; what cannot be seen from outside is whether the
-        /// server ever looks at either again. Cleared whenever the phase leaves waiting, so each
-        /// cast reports for itself.
-        /// </summary>
-        private bool _hasLoggedServerTick;
-
         private bool IsLocalOccupant =>
             NetworkManager.Singleton != null && _occupantClientId.Value == NetworkManager.Singleton.LocalClientId;
 
@@ -269,10 +261,6 @@ namespace FishingZone.Fishing
         /// </summary>
         private void Update()
         {
-            // Diagnostic, and deliberately above every guard below it: whether those guards are
-            // passing is the question, so a report from underneath them would answer nothing.
-            LogServerTickOnce();
-
             if (!IsSpawned)
             {
                 return;
@@ -287,30 +275,6 @@ namespace FishingZone.Fishing
             {
                 PollFishingInput();
             }
-        }
-
-        /// <summary>
-        /// Says, once per cast on whichever peer manages to run it, that this method was reached
-        /// while a line was out, and what this machine believed at that moment.
-        ///
-        /// Diagnostic, and temporary. A bite that never comes has only a few possible explanations
-        /// and they are indistinguishable from outside: Unity not calling Update on this copy at
-        /// all, an object this peer does not consider spawned, a peer that is not the server, or a
-        /// phase that is not what the prompt suggests. Silence from the host is itself the answer to
-        /// the first; the rest are named on the line.
-        /// </summary>
-        private void LogServerTickOnce()
-        {
-            if (_hasLoggedServerTick || Phase != FishingPhase.Waiting)
-            {
-                return;
-            }
-
-            _hasLoggedServerTick = true;
-
-            GameLog.Info(LogCategory.Fish,
-                $"'{name}' Update reached while waiting. spawned: {IsSpawned}, server: {IsServer}, " +
-                $"phase: {Phase}, countdown: {_biteCountdown:F2}.");
         }
 
         /// <summary>
@@ -490,13 +454,6 @@ namespace FishingZone.Fishing
             // leaves nothing behind for the next to inherit.
             _biteCountdown = Random.Range(_minBiteDelay, _maxBiteDelay);
 
-            // Diagnostic, and temporary. Proves the server got this far and says what it drew, so a
-            // wait that never ends can be told apart from bounds that were never what they look like
-            // in the Inspector.
-            GameLog.Info(LogCategory.Fish,
-                $"'{name}' armed a bite in {_biteCountdown:F2}s for client {senderId}. " +
-                $"(min {_minBiteDelay}, max {_maxBiteDelay})");
-
             SetPhaseOnServer(FishingPhase.Waiting);
 
             GameLog.Info(LogCategory.Fish, $"Client {senderId} started fishing at '{name}'.");
@@ -614,13 +571,6 @@ namespace FishingZone.Fishing
 
         private void HandlePhaseChanged(int previous, int current)
         {
-            if ((FishingPhase)current != FishingPhase.Waiting)
-            {
-                // Armed again, so the next cast reports for itself rather than staying quiet
-                // because an earlier one already spoke.
-                _hasLoggedServerTick = false;
-            }
-
             RefreshLocalPrompt();
         }
 
