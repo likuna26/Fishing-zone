@@ -42,14 +42,14 @@ namespace FishingZone.Fishing
         private string _occupiedText = "Cast to fish, or leave the station";
 
         [SerializeField]
-        private string _stopFishText = "Stop fishing";
+        private string _stopFishText = "Waiting for a bite — release to stop, or leave the station";
 
         [SerializeField]
         private string _busyText = "Station in use";
 
         /// <summary>Distinct from busy, because a place being worked reads differently from one merely taken.</summary>
         [SerializeField]
-        private string _busyFishingText = "Someone is fishing here";
+        private string _busyFishingText = "Someone has a line out here";
 
         [SerializeField]
         private string _wrongRoleText = "Only the Fisher may fish here";
@@ -158,14 +158,14 @@ namespace FishingZone.Fishing
                 return _fishText;
             }
 
-            bool isFishing = Phase == FishingPhase.Fishing;
+            bool isWaiting = Phase == FishingPhase.Waiting;
 
             if (IsLocalOccupant)
             {
-                return isFishing ? _stopFishText : _occupiedText;
+                return isWaiting ? _stopFishText : _occupiedText;
             }
 
-            return isFishing ? _busyFishingText : _busyText;
+            return isWaiting ? _busyFishingText : _busyText;
         }
 
         /// <summary>
@@ -347,7 +347,7 @@ namespace FishingZone.Fishing
                 return;
             }
 
-            _phase.Value = (int)FishingPhase.Fishing;
+            SetPhaseOnServer(FishingPhase.Waiting);
 
             GameLog.Info(LogCategory.Fish, $"Client {senderId} started fishing at '{name}'.");
         }
@@ -373,7 +373,7 @@ namespace FishingZone.Fishing
                 return;
             }
 
-            _phase.Value = (int)FishingPhase.Idle;
+            SetPhaseOnServer(FishingPhase.Idle);
 
             GameLog.Info(LogCategory.Fish, $"Client {senderId} stopped fishing at '{name}'.");
         }
@@ -390,10 +390,22 @@ namespace FishingZone.Fishing
         {
             ulong previous = _occupantClientId.Value;
 
-            _phase.Value = (int)FishingPhase.Idle;
+            SetPhaseOnServer(FishingPhase.Idle);
             _occupantClientId.Value = NoOccupant;
 
             GameLog.Info(LogCategory.Fish, $"Client {previous} left the fishing station '{name}'.");
+        }
+
+        /// <summary>
+        /// The one place the phase is written. Server only, since the variable refuses anything else.
+        ///
+        /// A single site rather than three assignments, because the phases are about to outnumber
+        /// the ways of reaching them: with a bite and the playing of a fish to come, every new path
+        /// that moves a station along should have exactly one thing to call.
+        /// </summary>
+        private void SetPhaseOnServer(FishingPhase phase)
+        {
+            _phase.Value = (int)phase;
         }
 
         /// <summary>
