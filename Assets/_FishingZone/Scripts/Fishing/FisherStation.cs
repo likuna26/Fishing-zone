@@ -87,15 +87,6 @@ namespace FishingZone.Fishing
         /// </summary>
         private bool _ownsLocalFishingInput;
 
-        /// <summary>
-        /// Diagnostic only. Cast produces nothing in play while everything around it works, and
-        /// everything around it reaches the player without going through Update: claiming, prompts
-        /// and replication are all callbacks. So the question is which of several silent things is
-        /// true, and the code as written cannot say. Cleared when this stops being the local
-        /// player's station, so taking one again reports afresh.
-        /// </summary>
-        private bool _hasLoggedInputPoll;
-
         private bool IsLocalOccupant =>
             NetworkManager.Singleton != null && _occupantClientId.Value == NetworkManager.Singleton.LocalClientId;
 
@@ -218,8 +209,6 @@ namespace FishingZone.Fishing
             {
                 return;
             }
-
-            LogInputPollOnce();
 
             if (_castAction != null && _castAction.action.WasPressedThisFrame())
             {
@@ -457,60 +446,8 @@ namespace FishingZone.Fishing
         /// </summary>
         private void HandleOccupantChanged(ulong previous, ulong current)
         {
-            if (!IsLocalOccupant)
-            {
-                // Armed again, so a second go at this station says what it found rather than
-                // staying quiet because it once spoke.
-                _hasLoggedInputPoll = false;
-            }
-
             SetLocalFishingInput(IsLocalOccupant);
             RefreshLocalPrompt();
-        }
-
-        /// <summary>
-        /// Says, once per stay at this station, that the poll below is being reached at all and what
-        /// it is holding when it gets there.
-        ///
-        /// Diagnostic, and temporary. It exists because every silent way this can fail looks
-        /// identical from the outside: a component Unity is not calling Update on, a reference left
-        /// unassigned in the Inspector and skipped by a null check, an action that does not resolve,
-        /// and one that resolves but is not enabled all produce exactly nothing. This tells the four
-        /// apart in a single run instead of guessing at which one to fix.
-        /// </summary>
-        private void LogInputPollOnce()
-        {
-            if (_hasLoggedInputPoll)
-            {
-                return;
-            }
-
-            _hasLoggedInputPoll = true;
-
-            GameLog.Info(LogCategory.Input,
-                $"'{name}' is polling fishing input for client {NetworkManager.Singleton.LocalClientId}. " +
-                $"Cast {Describe(_castAction)}. Release {Describe(_stopFishingAction)}.");
-        }
-
-        /// <summary>
-        /// Assigned is whether the Inspector field holds anything, resolved is whether that points
-        /// at an action which still exists, and enabled is whether its map is live. They fail
-        /// independently, so all three are reported.
-        /// </summary>
-        private static string Describe(InputActionReference reference)
-        {
-            if (reference == null)
-            {
-                return "assigned: False, resolved: False, enabled: False";
-            }
-
-            InputAction action = reference.action;
-            if (action == null)
-            {
-                return "assigned: True, resolved: False, enabled: False";
-            }
-
-            return $"assigned: True, resolved: True, enabled: {action.enabled}";
         }
 
         private void HandlePhaseChanged(int previous, int current)
