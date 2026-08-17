@@ -1,30 +1,33 @@
 using FishingZone.Core;
+using FishingZone.Core.Input;
 using FishingZone.Player;
 using FishingZone.Roles;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace FishingZone.Fishing
 {
     /// <summary>
-    /// A place aboard where one Fisher may fish. For now it only decides who has it.
+    /// A place aboard where one Fisher may fish, and what is happening there.
     ///
-    /// Nothing is caught, cast, reeled or held here yet: this establishes that the job chosen back
-    /// in the lobby still governs what a player may do once the lobby is long gone, that the server
-    /// is what decides it, and that a place taken is a place nobody else can take. The fishing
-    /// itself is built on top of this.
+    /// Two separate questions, deliberately kept separate. Interact settles who has the place; Cast
+    /// and Release settle whether they are fishing at it. Overloading one key with both would give
+    /// it three meanings depending on state nobody can see, and would leave nowhere for reeling to
+    /// go. Nothing is caught, cast, reeled or hooked yet: this establishes a state everyone can
+    /// trust, and the mechanics are built on top of it.
     ///
-    /// One station is one place, and stations know nothing of each other. Two Fishers cannot stand
-    /// on the same stretch of rail, so a crew that carries two of them gets two of these rather than
-    /// one station keeping two seats. A second place to fish is another object in the scene rather
-    /// than a capacity number in this class, and neither object has to be told the other exists.
+    /// One station is one place, and a Fisher may hold one place. Stations hold no reference to each
+    /// other; the server simply asks, once, at the moment somebody claims one, whether they already
+    /// have another. That question is asked of the scene rather than of a manager, so nothing has to
+    /// be kept in step and nothing outlives the objects it describes.
     ///
     /// Deliberately does nothing to the player. No seat, no anchor, no suspended movement, no
     /// captured focus. Claiming a place is a claim and not a posture; what a Fisher's body does once
-    /// they have one is for the mechanics that follow to decide. In particular the wheel's captured
-    /// focus is NOT copied here: that works only because its occupant is seated and cannot walk
-    /// away, and pinning the focus of a player who is free to move would leave them unable to
-    /// interact with anything else on the boat.
+    /// they have one is for the mechanics that follow. In particular the wheel's captured focus is
+    /// NOT copied here: that works only because its occupant is seated and cannot walk away, and
+    /// pinning the focus of a player free to move would leave them unable to interact with anything
+    /// else aboard.
     /// </summary>
     public class FisherStation : NetworkBehaviour, IInteractable
     {
@@ -34,17 +37,41 @@ namespace FishingZone.Fishing
         [SerializeField]
         private string _fishText = "Fish here";
 
+        /// <summary>Shown to the holder while they are not yet fishing, so both of their options read.</summary>
+        [SerializeField]
+        private string _occupiedText = "Cast to fish, or leave the station";
+
         [SerializeField]
         private string _stopFishText = "Stop fishing";
 
         [SerializeField]
         private string _busyText = "Station in use";
 
+        /// <summary>Distinct from busy, because a place being worked reads differently from one merely taken.</summary>
+        [SerializeField]
+        private string _busyFishingText = "Someone is fishing here";
+
         [SerializeField]
         private string _wrongRoleText = "Only the Fisher may fish here";
 
+        /// <summary>
+        /// From the Fishing map, which already exists and is already bound. Read only on the peer
+        /// holding this station, and only while the map is enabled, which happens for exactly as
+        /// long as they hold it.
+        /// </summary>
+        [SerializeField]
+        private InputActionReference _castAction;
+
+        [SerializeField]
+        private InputActionReference _stopFishingAction;
+
         private readonly NetworkVariable<ulong> _occupantClientId = new NetworkVariable<ulong>(
             NoOccupant,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<int> _phase = new NetworkVariable<int>(
+            (int)FishingPhase.Idle,
             NetworkVariableReadPermission.Everyone,
             NetworkVariableWritePermission.Server);
 
@@ -52,31 +79,46 @@ namespace FishingZone.Fishing
 
         public bool IsOccupied => _occupantClientId.Value != NoOccupant;
 
+        public FishingPhase Phase => (FishingPhase)_phase.Value;
+
+        /// <summary>
+        /// Whether this station is the one that turned the Fishing map on. Kept so a station can
+        /// never switch off input it did not switch on.
+        /// </summary>
+        private bool _ownsLocalFishingInput;
+
         private bool IsLocalOccupant =>
             NetworkManager.Singleton != null && _occupantClientId.Value == NetworkManager.Singleton.LocalClientId;
 
         public override void OnNetworkSpawn()
         {
             _occupantClientId.OnValueChanged += HandleOccupantChanged;
+            _phase.OnValueChanged += HandlePhaseChanged;
 
             if (IsServer)
             {
                 NetworkManager.Singleton.OnClientDisconnectCallback += HandleClientDisconnected;
             }
 
-            // For the case where this station arrives after a player is already looking at where it
-            // will be. Harmless otherwise, and null-safe before any player exists.
+            // Adopted rather than waited for, so a station arriving after the player who is looking
+            // at it still reads correctly. Null-safe before any player exists.
+            SetLocalFishingInput(IsLocalOccupant);
             RefreshLocalPrompt();
         }
 
         public override void OnNetworkDespawn()
         {
             _occupantClientId.OnValueChanged -= HandleOccupantChanged;
+            _phase.OnValueChanged -= HandlePhaseChanged;
 
             if (IsServer && NetworkManager.Singleton != null)
             {
                 NetworkManager.Singleton.OnClientDisconnectCallback -= HandleClientDisconnected;
             }
+
+            // Never leave a departing station holding the local player's input. A crew that changed
+            // scene mid-cast would otherwise keep the Fishing map live for the rest of the session.
+            SetLocalFishingInput(false);
         }
 
         /// <summary>
@@ -94,12 +136,9 @@ namespace FishingZone.Fishing
         }
 
         /// <summary>
-        /// Reads differently for the four cases a player can be in, so a place that is taken looks
-        /// taken rather than merely unresponsive.
-        ///
-        /// Being the wrong job is reported ahead of the place being busy, matching the order the
-        /// server refuses in: it is the firmer of the two reasons and the one that will not change
-        /// by waiting.
+        /// Being the wrong job is reported ahead of anything about the place itself, matching the
+        /// order the server refuses in: it is the firmer of the reasons and the one that will not
+        /// change by waiting.
         ///
         /// The role comes from the copy carried on the player object, which is the one place this
         /// class is allowed to consult it. That value is a replicated mirror a determined client
@@ -119,20 +158,24 @@ namespace FishingZone.Fishing
                 return _fishText;
             }
 
-            return IsLocalOccupant ? _stopFishText : _busyText;
+            bool isFishing = Phase == FishingPhase.Fishing;
+
+            if (IsLocalOccupant)
+            {
+                return isFishing ? _stopFishText : _occupiedText;
+            }
+
+            return isFishing ? _busyFishingText : _busyText;
         }
 
         /// <summary>
-        /// Asks the server, whatever the prompt just said.
+        /// Interact settles the place, and nothing else. Leaving while fishing is allowed and ends
+        /// both at once, because everything that empties a station goes through one path and that
+        /// path cannot strand anybody mid-cast.
         ///
-        /// A player the local mirror believes is no Fisher still gets to ask, and a Fisher looking
-        /// at somebody else's place still gets to ask, and both get their answer from the machine
-        /// entitled to give one. Refusing locally would be quicker and would hide the only thing
-        /// worth proving.
-        ///
-        /// Which of the two requests to send is decided from local state, and that is safe: the
-        /// server verifies both independently, so a tampered flag produces a refusal rather than an
-        /// exploit.
+        /// Asks the server whatever the prompt just said. A player the local mirror believes is no
+        /// Fisher still gets to ask, and a Fisher looking at somebody else's place still gets to
+        /// ask, and both get their answer from the machine entitled to give one.
         /// </summary>
         public void Interact(GameObject interactor)
         {
@@ -153,7 +196,33 @@ namespace FishingZone.Fishing
         }
 
         /// <summary>
-        /// The decision, and the only one that counts.
+        /// Cast begins, Release ends. Read only by the peer holding this station, so the three other
+        /// copies of this component do nothing at all.
+        ///
+        /// Neither press is filtered by the phase this machine believes it is in. Asking to start
+        /// while already fishing is refused by the server and logged there, which is worth more than
+        /// the message it saves.
+        /// </summary>
+        private void Update()
+        {
+            if (!IsSpawned || !IsLocalOccupant)
+            {
+                return;
+            }
+
+            if (_castAction != null && _castAction.action.WasPressedThisFrame())
+            {
+                RequestStartFishingServerRpc();
+            }
+
+            if (_stopFishingAction != null && _stopFishingAction.action.WasPressedThisFrame())
+            {
+                RequestStopFishingServerRpc();
+            }
+        }
+
+        /// <summary>
+        /// Who may have this place.
         ///
         /// Who is asking comes from the transport rather than from anything the caller sent, so one
         /// player cannot claim on another's behalf. What they are comes from the crew registry,
@@ -199,6 +268,16 @@ namespace FishingZone.Fishing
                 return;
             }
 
+            // Asked last, because it is the only one that has to look past this object. A Fisher
+            // holding two places could fish at neither: the Fishing map belongs to whichever station
+            // switched it on, so letting go of one would take the other's controls with it.
+            if (TryFindStationHeldBy(senderId, out FisherStation held))
+            {
+                GameLog.Info(LogCategory.Fish,
+                    $"Refused client {senderId} at '{name}': they already have '{held.name}'.");
+                return;
+            }
+
             _occupantClientId.Value = senderId;
 
             GameLog.Info(LogCategory.Fish, $"Client {senderId} took the fishing station '{name}'.");
@@ -226,10 +305,92 @@ namespace FishingZone.Fishing
             ReleaseOnServer();
         }
 
+        /// <summary>
+        /// Whether fishing may begin here.
+        ///
+        /// The role is asked again rather than assumed from occupancy. It costs one lookup, and it
+        /// means this decision stands on its own rather than on an invariant established somewhere
+        /// else that a later change might quietly break.
+        /// </summary>
+        [ServerRpc(RequireOwnership = false)]
+        private void RequestStartFishingServerRpc(ServerRpcParams parameters = default)
+        {
+            ulong senderId = parameters.Receive.SenderClientId;
+
+            CrewRoleRegistry registry = ServiceRegistry.Get<CrewRoleRegistry>();
+            if (registry == null)
+            {
+                GameLog.Error(LogCategory.Fish,
+                    $"Refused client {senderId} fishing at '{name}': no crew registry, so nobody's job can be confirmed.");
+                return;
+            }
+
+            PlayerRole role = registry.GetRole(senderId);
+            if (role != PlayerRole.Fisher)
+            {
+                GameLog.Info(LogCategory.Fish,
+                    $"Refused client {senderId} fishing at '{name}': only a Fisher may fish there, and they are {role}.");
+                return;
+            }
+
+            if (_occupantClientId.Value != senderId)
+            {
+                GameLog.Info(LogCategory.Fish,
+                    $"Refused client {senderId} fishing at '{name}': they do not have it.");
+                return;
+            }
+
+            if (Phase != FishingPhase.Idle)
+            {
+                GameLog.Info(LogCategory.Fish,
+                    $"Refused client {senderId} fishing at '{name}': already {Phase}.");
+                return;
+            }
+
+            _phase.Value = (int)FishingPhase.Fishing;
+
+            GameLog.Info(LogCategory.Fish, $"Client {senderId} started fishing at '{name}'.");
+        }
+
+        /// <summary>
+        /// Stopping asks only who is asking. Giving up is not a privilege, so there is nothing to
+        /// check beyond it being theirs to give up.
+        /// </summary>
+        [ServerRpc(RequireOwnership = false)]
+        private void RequestStopFishingServerRpc(ServerRpcParams parameters = default)
+        {
+            ulong senderId = parameters.Receive.SenderClientId;
+
+            if (_occupantClientId.Value != senderId)
+            {
+                GameLog.Info(LogCategory.Fish,
+                    $"Refused client {senderId} stopping at '{name}': they do not have it.");
+                return;
+            }
+
+            if (Phase == FishingPhase.Idle)
+            {
+                return;
+            }
+
+            _phase.Value = (int)FishingPhase.Idle;
+
+            GameLog.Info(LogCategory.Fish, $"Client {senderId} stopped fishing at '{name}'.");
+        }
+
+        /// <summary>
+        /// The one way a station empties, whether its holder let go, was disconnected, or is being
+        /// turned out by anything added later.
+        ///
+        /// The phase is cleared first and the occupant second, so no peer ever observes a station
+        /// that is fishing with nobody at it. The two variables replicate independently, and in the
+        /// other order that gap would be visible.
+        /// </summary>
         private void ReleaseOnServer()
         {
             ulong previous = _occupantClientId.Value;
 
+            _phase.Value = (int)FishingPhase.Idle;
             _occupantClientId.Value = NoOccupant;
 
             GameLog.Info(LogCategory.Fish, $"Client {previous} left the fishing station '{name}'.");
@@ -252,21 +413,90 @@ namespace FishingZone.Fishing
         }
 
         /// <summary>
-        /// Runs on every peer. Nobody's body is moved and nothing is seated; the only thing that
-        /// changes locally is what this place says when looked at.
+        /// Finds a station this client already holds, if any.
+        ///
+        /// A search of the scene rather than a list kept up to date, because a list would be a
+        /// second copy of something the stations already know, and keeping two copies agreeing is
+        /// how stale ownership happens. Searching also covers a station wherever it sits, which a
+        /// walk of the boat's own children would not: a place to fish may yet be built on a dock.
+        ///
+        /// Server only, and only when somebody presses to claim a place, so how thorough it is
+        /// costs nothing.
+        /// </summary>
+        private bool TryFindStationHeldBy(ulong clientId, out FisherStation held)
+        {
+            FisherStation[] stations = FindObjectsByType<FisherStation>(FindObjectsSortMode.None);
+
+            for (int i = 0; i < stations.Length; i++)
+            {
+                if (stations[i] != this && stations[i].OccupantClientId == clientId)
+                {
+                    held = stations[i];
+                    return true;
+                }
+            }
+
+            held = null;
+            return false;
+        }
+
+        /// <summary>
+        /// Runs on every peer. Nobody's body is moved and nothing is seated; what changes locally is
+        /// what this place says when looked at, and whether this machine is listening for a cast.
         /// </summary>
         private void HandleOccupantChanged(ulong previous, ulong current)
         {
+            SetLocalFishingInput(IsLocalOccupant);
             RefreshLocalPrompt();
+        }
+
+        private void HandlePhaseChanged(int previous, int current)
+        {
+            RefreshLocalPrompt();
+        }
+
+        /// <summary>
+        /// Turns the Fishing controls on for whoever is holding this place, and off again when they
+        /// are not.
+        ///
+        /// Added to what is already live rather than replacing it, because Interact lives on the
+        /// Player map and leaving is done with Interact. The flag means a station only ever switches
+        /// off input it switched on, which together with a Fisher holding one place at a time keeps
+        /// two stations from ever arguing over it.
+        /// </summary>
+        private void SetLocalFishingInput(bool isHolding)
+        {
+            if (_ownsLocalFishingInput == isHolding)
+            {
+                return;
+            }
+
+            GameInput input = ServiceRegistry.Get<GameInput>();
+            if (input == null)
+            {
+                // ServiceRegistry has already logged the miss.
+                return;
+            }
+
+            if (isHolding)
+            {
+                input.EnableMap(InputMap.Fishing);
+            }
+            else
+            {
+                input.DisableMap(InputMap.Fishing);
+            }
+
+            _ownsLocalFishingInput = isHolding;
         }
 
         /// <summary>
         /// Asks the local player to read its prompt again.
         ///
         /// Done on every peer rather than only on the occupant's, because a Fisher standing and
-        /// watching somebody else take a place needs their own text to stop offering it. The prompt
-        /// is otherwise read once, when the player first looks, and would go on saying whatever was
-        /// true at that moment.
+        /// watching somebody else take a place, or start fishing at one, needs their own text to
+        /// keep up. The prompt is otherwise read once, when the player first looks, and would go on
+        /// saying whatever was true at that moment.
         ///
         /// Refreshing whatever the player happens to be looking at, rather than insisting it is this
         /// station, keeps this from having to know: re-reading another object's prompt produces the
