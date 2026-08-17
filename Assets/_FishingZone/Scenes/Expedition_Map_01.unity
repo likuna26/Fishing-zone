@@ -1103,7 +1103,17 @@ MonoBehaviour:
   m_EditorClassIdentifier: FishingZone::FishingZone.Fishing.FisherStation
   ShowTopMostFoldoutHeaderGroup: 1
   _fishText: Fish here
+  _occupiedText: Cast to fish, or leave the station
+  _stopFishText: "Waiting for a bite \u2014 release to stop, or leave the station"
+  _busyText: Station in use
+  _busyFishingText: Someone has a line out here
+  _biteText: Something is biting! Release to stop, or leave the station
+  _busyBiteText: Someone has a bite here
+  _minBiteDelay: 3
+  _maxBiteDelay: 10
   _wrongRoleText: Only the Fisher may fish here
+  _castAction: {fileID: 2883452151877530926, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
+  _stopFishingAction: {fileID: -8590259650862159448, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
 --- !u!65 &1673133546
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -1172,7 +1182,17 @@ MonoBehaviour:
   m_EditorClassIdentifier: FishingZone::FishingZone.Fishing.FisherStation
   ShowTopMostFoldoutHeaderGroup: 1
   _fishText: Fish here
+  _occupiedText: Cast to fish, or leave the station
+  _stopFishText: "Waiting for a bite \u2014 release to stop, or leave the station"
+  _busyText: Station in use
+  _busyFishingText: Someone has a line out here
+  _biteText: Something is biting! Release to stop, or leave the station
+  _busyBiteText: Someone has a bite here
+  _minBiteDelay: 3
+  _maxBiteDelay: 10
   _wrongRoleText: Only the Fisher may fish here
+  _castAction: {fileID: 2883452151877530926, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
+  _stopFishingAction: {fileID: -8590259650862159448, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
 --- !u!65 &1824502856
 BoxCollider:
   m_ObjectHideFlags: 0
