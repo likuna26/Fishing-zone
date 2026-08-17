@@ -62,6 +62,12 @@ namespace FishingZone.Fishing
         [SerializeField]
         private string _busyBiteText = "Someone has a bite here";
 
+        [SerializeField]
+        private string _hookedText = "Hooked! Release to stop, or leave the station";
+
+        [SerializeField]
+        private string _busyHookedText = "Someone has one on the line";
+
         /// <summary>
         /// How long a cast waits before something takes an interest, drawn afresh each time.
         ///
@@ -74,6 +80,14 @@ namespace FishingZone.Fishing
 
         [SerializeField]
         private float _maxBiteDelay = 10f;
+
+        /// <summary>
+        /// How long a bite stays answerable. Short enough to be a reaction, long enough that a
+        /// Fisher on another machine is not beaten by the trip their press has to make: the window
+        /// is measured entirely on the server, so a remote player spends some of it in transit.
+        /// </summary>
+        [SerializeField]
+        private float _biteWindow = 2f;
 
         [SerializeField]
         private string _wrongRoleText = "Only the Fisher may fish here";
@@ -112,17 +126,21 @@ namespace FishingZone.Fishing
         private bool _ownsLocalFishingInput;
 
         /// <summary>
-        /// How much longer this station's cast waits, counted down by the server alone.
+        /// How much longer the phase this station is in has to run, counted down by the server alone.
+        ///
+        /// One value for both timed phases rather than one each, because a station is only ever in
+        /// one of them: waiting counts towards a bite, and a bite counts towards being missed. It is
+        /// wound by <see cref="SetPhaseOnServer"/> on the way in, so no transition can forget to.
         ///
         /// Deliberately not replicated. A client that knew when the bite was coming could act on it
-        /// before it arrived, which is exactly what answering a bite will one day have to be
-        /// protected from. Everyone learns of a bite when it happens and not a frame sooner.
+        /// before it arrived, and one that knew how much of the window was left could be certain of
+        /// a hook it should have had to judge. Everyone learns of a bite when it happens.
         ///
-        /// Nothing has to clear it. It is read only while this station is waiting, so every way a
-        /// cast can end already stops it by setting the phase, and there is no scheduled callback
-        /// left in flight to arrive at an empty station later.
+        /// Nothing has to clear it. It is read only in the phases that use it, so every way a cast
+        /// can end already stops it by setting the phase, and there is no scheduled callback left in
+        /// flight to arrive at an empty station later.
         /// </summary>
-        private float _biteCountdown;
+        private float _phaseCountdown;
 
         private bool IsLocalOccupant =>
             NetworkManager.Singleton != null && _occupantClientId.Value == NetworkManager.Singleton.LocalClientId;
@@ -201,6 +219,8 @@ namespace FishingZone.Fishing
             {
                 switch (phase)
                 {
+                    case FishingPhase.Hooked:
+                        return _hookedText;
                     case FishingPhase.Bite:
                         return _biteText;
                     case FishingPhase.Waiting:
@@ -212,6 +232,8 @@ namespace FishingZone.Fishing
 
             switch (phase)
             {
+                case FishingPhase.Hooked:
+                    return _busyHookedText;
                 case FishingPhase.Bite:
                     return _busyBiteText;
                 case FishingPhase.Waiting:
@@ -287,21 +309,32 @@ namespace FishingZone.Fishing
         /// </summary>
         private void TickBite()
         {
-            if (Phase != FishingPhase.Waiting)
+            FishingPhase phase = Phase;
+            if (phase != FishingPhase.Waiting && phase != FishingPhase.Bite)
             {
                 return;
             }
 
-            _biteCountdown -= Time.deltaTime;
-            if (_biteCountdown > 0f)
+            _phaseCountdown -= Time.deltaTime;
+            if (_phaseCountdown > 0f)
             {
                 return;
             }
 
-            SetPhaseOnServer(FishingPhase.Bite);
+            ulong occupant = _occupantClientId.Value;
 
-            GameLog.Info(LogCategory.Fish,
-                $"Something bit at '{name}' for client {_occupantClientId.Value}.");
+            if (phase == FishingPhase.Waiting)
+            {
+                SetPhaseOnServer(FishingPhase.Bite);
+                GameLog.Info(LogCategory.Fish, $"Something bit at '{name}' for client {occupant}.");
+                return;
+            }
+
+            // The window ran out with no answer. Back to waiting rather than to nothing: the line is
+            // still in the water, and a missed bite costs the time it takes for another to come
+            // rather than the cast itself.
+            SetPhaseOnServer(FishingPhase.Waiting);
+            GameLog.Info(LogCategory.Fish, $"The bite at '{name}' got away from client {occupant}.");
         }
 
         /// <summary>
@@ -315,7 +348,20 @@ namespace FishingZone.Fishing
         {
             if (_castAction != null && _castAction.action.WasPressedThisFrame())
             {
-                RequestStartFishingServerRpc();
+                // One key for one gesture: put the line out, or strike when something takes it. Which
+                // of the two is asked for is chosen from what this machine believes, and the server
+                // verifies both independently, so a wrong belief produces a refusal and not a
+                // liberty. Pull would read better for striking and is left alone on purpose: it
+                // shares a key with Jump, and a Fisher who leapt every time they set the hook would
+                // be a worse answer than a key that means the obvious thing twice.
+                if (Phase == FishingPhase.Bite)
+                {
+                    RequestHookServerRpc();
+                }
+                else
+                {
+                    RequestStartFishingServerRpc();
+                }
             }
 
             if (_stopFishingAction != null && _stopFishingAction.action.WasPressedThisFrame())
@@ -450,13 +496,61 @@ namespace FishingZone.Fishing
                 return;
             }
 
-            // Drawn here rather than kept, so each cast waits its own length and an abandoned one
-            // leaves nothing behind for the next to inherit.
-            _biteCountdown = Random.Range(_minBiteDelay, _maxBiteDelay);
-
             SetPhaseOnServer(FishingPhase.Waiting);
 
             GameLog.Info(LogCategory.Fish, $"Client {senderId} started fishing at '{name}'.");
+        }
+
+        /// <summary>
+        /// Whether the Fisher answered in time.
+        ///
+        /// There is no separate check that the window is still open, because the phase is the
+        /// window: had it run out, the server would already have put this station back to waiting,
+        /// and the check below would refuse on that. The clock consulted is the server's own, and no
+        /// timing a client reports is read anywhere.
+        ///
+        /// The role is asked again rather than assumed from occupancy, for the reason casting asks:
+        /// one lookup, and a decision that stands on its own rather than on an invariant established
+        /// elsewhere that a later change might quietly break.
+        /// </summary>
+        [ServerRpc(RequireOwnership = false)]
+        private void RequestHookServerRpc(ServerRpcParams parameters = default)
+        {
+            ulong senderId = parameters.Receive.SenderClientId;
+
+            CrewRoleRegistry registry = ServiceRegistry.Get<CrewRoleRegistry>();
+            if (registry == null)
+            {
+                GameLog.Error(LogCategory.Fish,
+                    $"Refused client {senderId} hooking at '{name}': no crew registry, so nobody's job can be confirmed.");
+                return;
+            }
+
+            PlayerRole role = registry.GetRole(senderId);
+            if (role != PlayerRole.Fisher)
+            {
+                GameLog.Info(LogCategory.Fish,
+                    $"Refused client {senderId} hooking at '{name}': only a Fisher may fish there, and they are {role}.");
+                return;
+            }
+
+            if (_occupantClientId.Value != senderId)
+            {
+                GameLog.Info(LogCategory.Fish,
+                    $"Refused client {senderId} hooking at '{name}': they do not have it.");
+                return;
+            }
+
+            if (Phase != FishingPhase.Bite)
+            {
+                GameLog.Info(LogCategory.Fish,
+                    $"Refused client {senderId} hooking at '{name}': nothing is biting, it is {Phase}.");
+                return;
+            }
+
+            SetPhaseOnServer(FishingPhase.Hooked);
+
+            GameLog.Info(LogCategory.Fish, $"Client {senderId} set the hook at '{name}'.");
         }
 
         /// <summary>
@@ -513,6 +607,13 @@ namespace FishingZone.Fishing
         private void SetPhaseOnServer(FishingPhase phase)
         {
             _phase.Value = (int)phase;
+
+            // Wound on the way in rather than by whoever happens to be making the transition, so a
+            // phase that runs on a clock cannot be entered without one. Idle and Hooked keep no
+            // time: one is a station at rest and the other waits on the Fisher, not the clock.
+            _phaseCountdown = phase == FishingPhase.Waiting ? Random.Range(_minBiteDelay, _maxBiteDelay)
+                : phase == FishingPhase.Bite ? _biteWindow
+                : 0f;
         }
 
         /// <summary>

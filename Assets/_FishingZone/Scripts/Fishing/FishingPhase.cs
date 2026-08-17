@@ -28,10 +28,19 @@ namespace FishingZone.Fishing
         Waiting = 1,
 
         /// <summary>
-        /// A fish is at the line here, now. Says nothing about whether it can be hooked, held or
-        /// lost: those are separate things that need words of their own, and inventing them before
-        /// the mechanics exist would be guessing at what they mean.
+        /// A fish is at the line here, now, and for a short while only. Says nothing about whether
+        /// it can be held or lost: those are separate things that need words of their own, and
+        /// inventing them before the mechanics exist would be guessing at what they mean.
         /// </summary>
-        Bite = 2
+        Bite = 2,
+
+        /// <summary>
+        /// The Fisher answered the bite in time and the server recorded it.
+        ///
+        /// That is the whole of it. Nothing is being reeled, nothing is straining, no fish exists
+        /// anywhere, and nothing has been caught. This is the result of a reaction, and what a
+        /// hooked line then leads to is for the mechanics that follow to decide.
+        /// </summary>
+        Hooked = 3
     }
 }
