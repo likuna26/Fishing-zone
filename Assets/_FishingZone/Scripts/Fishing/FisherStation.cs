@@ -89,6 +89,13 @@ namespace FishingZone.Fishing
         [SerializeField]
         private float _biteWindow = 2f;
 
+        /// <summary>
+        /// How long the line takes to come back aboard, with the reel actually being turned. Held
+        /// time rather than elapsed time, so a Fisher who lets go is not brought in by waiting.
+        /// </summary>
+        [SerializeField]
+        private float _reelDuration = 4f;
+
         [SerializeField]
         private string _wrongRoleText = "Only the Fisher may fish here";
 
@@ -102,6 +109,13 @@ namespace FishingZone.Fishing
 
         [SerializeField]
         private InputActionReference _stopFishingAction;
+
+        /// <summary>
+        /// Held rather than pressed, so the reel turns for as long as the Fisher keeps hold of it.
+        /// Only the two edges are sent; the turning itself is counted on the server.
+        /// </summary>
+        [SerializeField]
+        private InputActionReference _reelAction;
 
         private readonly NetworkVariable<ulong> _occupantClientId = new NetworkVariable<ulong>(
             NoOccupant,
@@ -141,6 +155,23 @@ namespace FishingZone.Fishing
         /// flight to arrive at an empty station later.
         /// </summary>
         private float _phaseCountdown;
+
+        /// <summary>
+        /// Whether the server believes the reel is being turned. Set by the two edges of the
+        /// Fisher's hold and by nothing else, and dropped by every phase change, so a hand that was
+        /// on the reel cannot still be counted at a station somebody has left.
+        ///
+        /// Not replicated: whether a crewmate's hand is on their reel is not something anyone else
+        /// needs to know, and a flag that flipped with every press would send traffic in proportion
+        /// to how hard somebody was clicking.
+        /// </summary>
+        private bool _reelHeld;
+
+        /// <summary>What this machine last told the server about its own hold, so it says so once.</summary>
+        private bool _reelRequested;
+
+        /// <summary>So a station with no reel to turn says so, rather than quietly refusing to move.</summary>
+        private bool _hasWarnedMissingReelAction;
 
         private bool IsLocalOccupant =>
             NetworkManager.Singleton != null && _occupantClientId.Value == NetworkManager.Singleton.LocalClientId;
@@ -310,7 +341,15 @@ namespace FishingZone.Fishing
         private void TickBite()
         {
             FishingPhase phase = Phase;
-            if (phase != FishingPhase.Waiting && phase != FishingPhase.Bite)
+
+            // Hooked runs on the Fisher's arm rather than on its own, so it counts only while the
+            // reel is being turned. Letting go stops the clock where it stands instead of losing
+            // what has already been brought in.
+            bool isTimed = phase == FishingPhase.Waiting
+                           || phase == FishingPhase.Bite
+                           || (phase == FishingPhase.Hooked && _reelHeld);
+
+            if (!isTimed)
             {
                 return;
             }
@@ -327,6 +366,16 @@ namespace FishingZone.Fishing
             {
                 SetPhaseOnServer(FishingPhase.Bite);
                 GameLog.Info(LogCategory.Fish, $"Something bit at '{name}' for client {occupant}.");
+                return;
+            }
+
+            if (phase == FishingPhase.Hooked)
+            {
+                // The line is aboard and the station is free to be cast again. Nothing was caught:
+                // there is no fish here to catch, and what a reeled-in line yields is the next piece
+                // of work. The Fisher keeps their place.
+                SetPhaseOnServer(FishingPhase.Idle);
+                GameLog.Info(LogCategory.Fish, $"Client {occupant} reeled the line in at '{name}'.");
                 return;
             }
 
@@ -368,6 +417,50 @@ namespace FishingZone.Fishing
             {
                 RequestStopFishingServerRpc();
             }
+
+            PollReelInput();
+        }
+
+        /// <summary>
+        /// Tells the server when the hold on the reel begins and when it ends, and nothing in
+        /// between. The turning is counted there, so holding for four seconds costs two messages
+        /// rather than one per frame, and there is no way to ask faster by clicking harder.
+        /// </summary>
+        private void PollReelInput()
+        {
+            if (_reelAction == null)
+            {
+                WarnMissingReelAction();
+                return;
+            }
+
+            bool isHeld = _reelAction.action.IsPressed();
+            if (isHeld == _reelRequested)
+            {
+                return;
+            }
+
+            _reelRequested = isHeld;
+            RequestReelServerRpc(isHeld);
+        }
+
+        /// <summary>
+        /// Said once, and loudly, because the alternative is a station that simply will not come in.
+        /// An unassigned action is swallowed by its own null check, which has twice now looked
+        /// exactly like a rule that stopped working.
+        /// </summary>
+        private void WarnMissingReelAction()
+        {
+            if (_hasWarnedMissingReelAction)
+            {
+                return;
+            }
+
+            _hasWarnedMissingReelAction = true;
+
+            GameLog.Error(LogCategory.Fish,
+                $"'{name}' has no Reel Action assigned; this station cannot be reeled in. " +
+                "Assign Fishing/Reel on it in the Inspector.");
         }
 
         /// <summary>
@@ -554,6 +647,52 @@ namespace FishingZone.Fishing
         }
 
         /// <summary>
+        /// Whether the reel is being turned.
+        ///
+        /// Carries only which edge this is, never how long it has been held or how far the line has
+        /// come: the server owns the clock, so nothing a client reports about time is read. Sent
+        /// twice per reel rather than once per frame, which is also why it needs no limiting — there
+        /// is nothing to gain by asking again.
+        /// </summary>
+        [ServerRpc(RequireOwnership = false)]
+        private void RequestReelServerRpc(bool isReeling, ServerRpcParams parameters = default)
+        {
+            ulong senderId = parameters.Receive.SenderClientId;
+
+            CrewRoleRegistry registry = ServiceRegistry.Get<CrewRoleRegistry>();
+            if (registry == null)
+            {
+                GameLog.Error(LogCategory.Fish,
+                    $"Refused client {senderId} reeling at '{name}': no crew registry, so nobody's job can be confirmed.");
+                return;
+            }
+
+            PlayerRole role = registry.GetRole(senderId);
+            if (role != PlayerRole.Fisher)
+            {
+                GameLog.Info(LogCategory.Fish,
+                    $"Refused client {senderId} reeling at '{name}': only a Fisher may fish there, and they are {role}.");
+                return;
+            }
+
+            if (_occupantClientId.Value != senderId)
+            {
+                GameLog.Info(LogCategory.Fish,
+                    $"Refused client {senderId} reeling at '{name}': they do not have it.");
+                return;
+            }
+
+            if (Phase != FishingPhase.Hooked)
+            {
+                GameLog.Info(LogCategory.Fish,
+                    $"Refused client {senderId} reeling at '{name}': there is nothing on the line, it is {Phase}.");
+                return;
+            }
+
+            _reelHeld = isReeling;
+        }
+
+        /// <summary>
         /// Stopping asks only who is asking. Giving up is not a privilege, so there is nothing to
         /// check beyond it being theirs to give up.
         /// </summary>
@@ -609,11 +748,17 @@ namespace FishingZone.Fishing
             _phase.Value = (int)phase;
 
             // Wound on the way in rather than by whoever happens to be making the transition, so a
-            // phase that runs on a clock cannot be entered without one. Idle and Hooked keep no
-            // time: one is a station at rest and the other waits on the Fisher, not the clock.
+            // phase that runs on a clock cannot be entered without one. Idle alone keeps no time:
+            // a station at rest is waiting for nothing.
             _phaseCountdown = phase == FishingPhase.Waiting ? Random.Range(_minBiteDelay, _maxBiteDelay)
                 : phase == FishingPhase.Bite ? _biteWindow
+                : phase == FishingPhase.Hooked ? _reelDuration
                 : 0f;
+
+            // Dropped on every change, so leaving, quitting or being disconnected mid-reel cannot
+            // leave a hand counted on a reel nobody is holding. One line here rather than a clearing
+            // step in each of those paths.
+            _reelHeld = false;
         }
 
         /// <summary>
@@ -672,6 +817,11 @@ namespace FishingZone.Fishing
 
         private void HandlePhaseChanged(int previous, int current)
         {
+            // Forgotten here as well as on the server, because the server drops its own copy on
+            // every change: a hand still on the button would otherwise have nothing new to report
+            // when the next fish is on, and would have to be lifted first.
+            _reelRequested = false;
+
             RefreshLocalPrompt();
         }
 
