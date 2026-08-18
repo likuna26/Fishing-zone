@@ -69,6 +69,14 @@ namespace FishingZone.Fishing
         private string _busyHookedText = "Someone has one on the line";
 
         /// <summary>
+        /// The one thing a Fisher has to be told, because the answer is the opposite of what they
+        /// are already doing. Crewmates keep the ordinary hooked text: a fish running is not
+        /// something they can act on, and it is still true that somebody has one on the line.
+        /// </summary>
+        [SerializeField]
+        private string _resistText = "It's running — let go of the reel!";
+
+        /// <summary>
         /// How long a cast waits before something takes an interest, drawn afresh each time.
         ///
         /// A range rather than a fixed wait, because two Fishers casting together would otherwise
@@ -95,6 +103,17 @@ namespace FishingZone.Fishing
         /// </summary>
         [SerializeField]
         private float _reelDuration = 4f;
+
+        /// <summary>
+        /// How long a fish is worked before it makes a run for it, drawn afresh each time. A range
+        /// rather than a fixed interval, so two Fishers reeling together do not have their fish bolt
+        /// in step, and so the Fisher cannot simply count.
+        /// </summary>
+        [SerializeField]
+        private float _minResistDelay = 1.5f;
+
+        [SerializeField]
+        private float _maxResistDelay = 3f;
 
         [SerializeField]
         private string _wrongRoleText = "Only the Fisher may fish here";
@@ -124,6 +143,20 @@ namespace FishingZone.Fishing
 
         private readonly NetworkVariable<int> _phase = new NetworkVariable<int>(
             (int)FishingPhase.Idle,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server);
+
+        /// <summary>
+        /// Whether the fish on this line is running.
+        ///
+        /// Replicated, unlike the reel's other workings, because it is the one thing the Fisher has
+        /// to be told: the answer to a run is to let go, which is the opposite of what they are
+        /// doing, and a prompt that never changed would leave them holding on forever. Kept apart
+        /// from the phase rather than made one, because the phase winds the reel's clock on entry
+        /// and a station that changed phase every time a fish bolted would start its reel over.
+        /// </summary>
+        private readonly NetworkVariable<bool> _isResisting = new NetworkVariable<bool>(
+            false,
             NetworkVariableReadPermission.Everyone,
             NetworkVariableWritePermission.Server);
 
@@ -167,6 +200,14 @@ namespace FishingZone.Fishing
         /// </summary>
         private bool _reelHeld;
 
+        /// <summary>
+        /// How much longer this fish is worked before it runs. Server-only for the same reason the
+        /// reel's own clock is: a Fisher who knew when the fish would bolt would not have to watch
+        /// for it. Read only while the reel is being turned and the fish is not already running, so
+        /// every way a fight can end already stops it.
+        /// </summary>
+        private float _resistCountdown;
+
         /// <summary>What this machine last told the server about its own hold, so it says so once.</summary>
         private bool _reelRequested;
 
@@ -180,6 +221,7 @@ namespace FishingZone.Fishing
         {
             _occupantClientId.OnValueChanged += HandleOccupantChanged;
             _phase.OnValueChanged += HandlePhaseChanged;
+            _isResisting.OnValueChanged += HandleResistingChanged;
 
             if (IsServer)
             {
@@ -196,6 +238,7 @@ namespace FishingZone.Fishing
         {
             _occupantClientId.OnValueChanged -= HandleOccupantChanged;
             _phase.OnValueChanged -= HandlePhaseChanged;
+            _isResisting.OnValueChanged -= HandleResistingChanged;
 
             if (IsServer && NetworkManager.Singleton != null)
             {
@@ -251,7 +294,7 @@ namespace FishingZone.Fishing
                 switch (phase)
                 {
                     case FishingPhase.Hooked:
-                        return _hookedText;
+                        return _isResisting.Value ? _resistText : _hookedText;
                     case FishingPhase.Bite:
                         return _biteText;
                     case FishingPhase.Waiting:
@@ -345,13 +388,32 @@ namespace FishingZone.Fishing
             // Hooked runs on the Fisher's arm rather than on its own, so it counts only while the
             // reel is being turned. Letting go stops the clock where it stands instead of losing
             // what has already been brought in.
+            // A running fish stops the reel outright: holding on through it achieves nothing, which
+            // is the whole of the lesson. Nothing is taken away either — the clock simply stands
+            // still until the Fisher gives line.
             bool isTimed = phase == FishingPhase.Waiting
                            || phase == FishingPhase.Bite
-                           || (phase == FishingPhase.Hooked && _reelHeld);
+                           || (phase == FishingPhase.Hooked && _reelHeld && !_isResisting.Value);
 
             if (!isTimed)
             {
                 return;
+            }
+
+            if (phase == FishingPhase.Hooked)
+            {
+                // A fish only bolts against a line being pulled, so this runs where the reeling
+                // does. That also guarantees a hold precedes every run, and therefore that a release
+                // is always available to answer it.
+                _resistCountdown -= Time.deltaTime;
+                if (_resistCountdown <= 0f)
+                {
+                    _isResisting.Value = true;
+
+                    GameLog.Info(LogCategory.Fish,
+                        $"The fish at '{name}' is running from client {_occupantClientId.Value}.");
+                    return;
+                }
             }
 
             _phaseCountdown -= Time.deltaTime;
@@ -689,6 +751,18 @@ namespace FishingZone.Fishing
                 return;
             }
 
+            // Letting go is the answer to a run, and the same edge that pauses an ordinary reel is
+            // what gives the line. Nothing is added to the message to say so: the server already
+            // knows the fish is running, and the client only has to report that its hand came off.
+            if (!isReeling && _isResisting.Value)
+            {
+                _isResisting.Value = false;
+                ArmResistCountdown();
+
+                GameLog.Info(LogCategory.Fish,
+                    $"Client {senderId} gave line at '{name}' and the run is over.");
+            }
+
             _reelHeld = isReeling;
         }
 
@@ -755,10 +829,22 @@ namespace FishingZone.Fishing
                 : phase == FishingPhase.Hooked ? _reelDuration
                 : 0f;
 
+            if (phase == FishingPhase.Hooked)
+            {
+                ArmResistCountdown();
+            }
+
             // Dropped on every change, so leaving, quitting or being disconnected mid-reel cannot
-            // leave a hand counted on a reel nobody is holding. One line here rather than a clearing
-            // step in each of those paths.
+            // leave a hand counted on a reel nobody is holding, nor a fish still running at a
+            // station nobody is at. One place rather than a clearing step in each of those paths.
             _reelHeld = false;
+            _isResisting.Value = false;
+        }
+
+        /// <summary>Drawn afresh, so no two fights run to the same rhythm.</summary>
+        private void ArmResistCountdown()
+        {
+            _resistCountdown = Random.Range(_minResistDelay, _maxResistDelay);
         }
 
         /// <summary>
@@ -822,6 +908,16 @@ namespace FishingZone.Fishing
             // when the next fish is on, and would have to be lifted first.
             _reelRequested = false;
 
+            RefreshLocalPrompt();
+        }
+
+        /// <summary>
+        /// The prompt has to change the moment a fish runs, because what is being asked for is the
+        /// opposite of what the Fisher is already doing. Driven by the replicated value arriving
+        /// rather than by anything watching for it, exactly as a phase change is.
+        /// </summary>
+        private void HandleResistingChanged(bool previous, bool current)
+        {
             RefreshLocalPrompt();
         }
 
