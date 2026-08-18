@@ -84,6 +84,27 @@ namespace FishingZone.Fishing
         private string _busyCaughtText = "Someone landed a catch";
 
         /// <summary>
+        /// Said when the catch has a name. The two above remain for when it does not, which happens
+        /// if the station was given nothing to catch.
+        ///
+        /// The name is substituted rather than formatted, so a placeholder edited into something
+        /// malformed loses the name instead of throwing in the middle of a prompt.
+        /// </summary>
+        [SerializeField]
+        private string _caughtNamedText = "You landed a {0}!";
+
+        [SerializeField]
+        private string _busyCaughtNamedText = "Someone landed a {0}";
+
+        /// <summary>
+        /// What may be caught here, chosen from at random by the server. Empty is a configuration
+        /// mistake rather than a kind of fishing: the loop still runs, and says loudly that it had
+        /// nothing to choose from.
+        /// </summary>
+        [SerializeField]
+        private FishDefinition[] _fishPool;
+
+        /// <summary>
         /// How long a cast waits before something takes an interest, drawn afresh each time.
         ///
         /// A range rather than a fixed wait, because two Fishers casting together would otherwise
@@ -174,6 +195,21 @@ namespace FishingZone.Fishing
             NetworkVariableReadPermission.Everyone,
             NetworkVariableWritePermission.Server);
 
+        /// <summary>
+        /// Which fish was landed, as the number rather than the asset.
+        ///
+        /// A ScriptableObject reference means nothing on another machine, so the server sends the id
+        /// and each peer finds the definition in the same pool it was configured with. That keeps
+        /// the wire to an int, which is what everything else replicated here already is.
+        ///
+        /// Cleared on every phase change, so the fish belongs to the catch that produced it and
+        /// cannot be read off a station that has moved on.
+        /// </summary>
+        private readonly NetworkVariable<int> _caughtFishId = new NetworkVariable<int>(
+            FishDefinition.NoFish,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server);
+
         public ulong OccupantClientId => _occupantClientId.Value;
 
         public bool IsOccupied => _occupantClientId.Value != NoOccupant;
@@ -236,6 +272,7 @@ namespace FishingZone.Fishing
             _occupantClientId.OnValueChanged += HandleOccupantChanged;
             _phase.OnValueChanged += HandlePhaseChanged;
             _isResisting.OnValueChanged += HandleResistingChanged;
+            _caughtFishId.OnValueChanged += HandleCaughtFishChanged;
 
             if (IsServer)
             {
@@ -253,6 +290,7 @@ namespace FishingZone.Fishing
             _occupantClientId.OnValueChanged -= HandleOccupantChanged;
             _phase.OnValueChanged -= HandlePhaseChanged;
             _isResisting.OnValueChanged -= HandleResistingChanged;
+            _caughtFishId.OnValueChanged -= HandleCaughtFishChanged;
 
             if (IsServer && NetworkManager.Singleton != null)
             {
@@ -308,7 +346,7 @@ namespace FishingZone.Fishing
                 switch (phase)
                 {
                     case FishingPhase.Caught:
-                        return _caughtText;
+                        return DescribeCatch(_caughtNamedText, _caughtText);
                     case FishingPhase.Hooked:
                         return _isResisting.Value ? _resistText : _hookedText;
                     case FishingPhase.Bite:
@@ -323,7 +361,7 @@ namespace FishingZone.Fishing
             switch (phase)
             {
                 case FishingPhase.Caught:
-                    return _busyCaughtText;
+                    return DescribeCatch(_busyCaughtNamedText, _busyCaughtText);
                 case FishingPhase.Hooked:
                     return _busyHookedText;
                 case FishingPhase.Bite:
@@ -452,10 +490,16 @@ namespace FishingZone.Fishing
 
             if (phase == FishingPhase.Hooked)
             {
-                // Something came aboard. What it was is a question for later; that it happened is
-                // the whole of what this records, and the Fisher keeps their place either way.
+                // Chosen before the phase is set, and applied after, because entering a phase clears
+                // the fish: the catch is the one moment that puts one back.
+                FishDefinition caught = ChooseCatchOnServer();
+
                 SetPhaseOnServer(FishingPhase.Caught);
-                GameLog.Info(LogCategory.Fish, $"Client {occupant} landed a catch at '{name}'.");
+                _caughtFishId.Value = caught != null ? caught.Id : FishDefinition.NoFish;
+
+                GameLog.Info(LogCategory.Fish, caught != null
+                    ? $"Client {occupant} landed a {caught.DisplayName} at '{name}'."
+                    : $"Client {occupant} landed a catch at '{name}'.");
                 return;
             }
 
@@ -868,6 +912,90 @@ namespace FishingZone.Fishing
             // station nobody is at. One place rather than a clearing step in each of those paths.
             _reelHeld = false;
             _isResisting.Value = false;
+
+            // A fish belongs to the catch that produced it. Cleared here rather than at each of the
+            // ways a cycle can end, so nothing landed earlier can be read off a station that has
+            // moved on, and no fish can survive into the next cast. The catch itself sets it again
+            // immediately afterwards, which is the one place it is ever anything else.
+            _caughtFishId.Value = FishDefinition.NoFish;
+        }
+
+        /// <summary>
+        /// Picks what came up, from what this station was told it could hold.
+        ///
+        /// Server only, and the client is never asked: there is no message that carries a fish, so
+        /// there is nothing to claim and no field to claim it in. Evenly among the usable entries,
+        /// because weighting them is a question about rarity and rarity is a system nobody has yet.
+        ///
+        /// A station with nothing usable configured returns nothing and says so. The catch still
+        /// happens and the loop still runs — a Fisher is not stranded by a mistake in an Inspector —
+        /// but no fish is invented to cover it up.
+        /// </summary>
+        private FishDefinition ChooseCatchOnServer()
+        {
+            int usable = 0;
+
+            if (_fishPool != null)
+            {
+                for (int i = 0; i < _fishPool.Length; i++)
+                {
+                    if (_fishPool[i] != null && _fishPool[i].IsValid)
+                    {
+                        usable++;
+                    }
+                }
+            }
+
+            if (usable == 0)
+            {
+                GameLog.Error(LogCategory.Fish,
+                    $"'{name}' landed a catch but has no usable fish configured. Add Fish Definitions " +
+                    "to its Fish Pool, each with a non-zero Id and a Display Name.");
+                return null;
+            }
+
+            // Walked rather than collected, so choosing a fish allocates nothing.
+            int pick = Random.Range(0, usable);
+
+            for (int i = 0; i < _fishPool.Length; i++)
+            {
+                if (_fishPool[i] == null || !_fishPool[i].IsValid)
+                {
+                    continue;
+                }
+
+                if (pick == 0)
+                {
+                    return _fishPool[i];
+                }
+
+                pick--;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Turns the number back into the fish, using the same list the server chose from. Every
+        /// peer holds it, because it is configured on this station and this station exists on all
+        /// of them.
+        /// </summary>
+        private FishDefinition FindFish(int id)
+        {
+            if (id == FishDefinition.NoFish || _fishPool == null)
+            {
+                return null;
+            }
+
+            for (int i = 0; i < _fishPool.Length; i++)
+            {
+                if (_fishPool[i] != null && _fishPool[i].Id == id)
+                {
+                    return _fishPool[i];
+                }
+            }
+
+            return null;
         }
 
         /// <summary>Drawn afresh, so no two fights run to the same rhythm.</summary>
@@ -948,6 +1076,33 @@ namespace FishingZone.Fishing
         private void HandleResistingChanged(bool previous, bool current)
         {
             RefreshLocalPrompt();
+        }
+
+        /// <summary>
+        /// The fish's number arrives on its own message and may land a moment after the phase does,
+        /// so the prompt is asked again when it does. Until then a catch reads as a catch, which is
+        /// true and is also what a station with nothing configured says for the whole moment.
+        /// </summary>
+        private void HandleCaughtFishChanged(int previous, int current)
+        {
+            RefreshLocalPrompt();
+        }
+
+        /// <summary>
+        /// Names the fish if this peer can, and falls back to saying only that something was landed
+        /// if it cannot: the number may not have arrived yet, or the station may have had nothing to
+        /// choose from. Substituted rather than formatted, so a placeholder edited into something
+        /// malformed loses the name rather than throwing.
+        /// </summary>
+        private string DescribeCatch(string namedText, string fallbackText)
+        {
+            FishDefinition fish = FindFish(_caughtFishId.Value);
+            if (fish == null || string.IsNullOrEmpty(namedText))
+            {
+                return fallbackText;
+            }
+
+            return namedText.Replace("{0}", fish.DisplayName);
         }
 
         /// <summary>
