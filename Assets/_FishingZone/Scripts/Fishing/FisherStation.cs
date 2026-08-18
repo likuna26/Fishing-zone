@@ -34,6 +34,12 @@ namespace FishingZone.Fishing
         /// <summary>No real client id, so an empty station needs no second variable to describe it.</summary>
         public const ulong NoOccupant = ulong.MaxValue;
 
+        /// <summary>
+        /// Nothing on the scale. A rolled weight is always at least one tenth of a kilogram, so no
+        /// real catch can be mistaken for an absent one.
+        /// </summary>
+        public const int NoWeight = 0;
+
         [SerializeField]
         private string _fishText = "Fish here";
 
@@ -95,6 +101,17 @@ namespace FishingZone.Fishing
 
         [SerializeField]
         private string _busyCaughtNamedText = "Someone landed a {0}";
+
+        /// <summary>
+        /// Said when the fish was weighed as well as named. The pair above remain for a fish whose
+        /// range was never configured: better to name it and leave the scale out than to print a
+        /// number nobody chose.
+        /// </summary>
+        [SerializeField]
+        private string _caughtWeighedText = "You landed a {0} — {1} kg!";
+
+        [SerializeField]
+        private string _busyCaughtWeighedText = "Someone landed a {0} — {1} kg";
 
         /// <summary>
         /// What may be caught here, chosen from at random by the server. Empty is a configuration
@@ -210,6 +227,22 @@ namespace FishingZone.Fishing
             NetworkVariableReadPermission.Everyone,
             NetworkVariableWritePermission.Server);
 
+        /// <summary>
+        /// What the catch weighed, in tenths of a kilogram.
+        ///
+        /// Tenths rather than kilograms, because a tenth is exactly the precision the scale is read
+        /// to: every peer divides the same whole number and none of them can round it differently,
+        /// which a float shared to one decimal place could. It also keeps the wire to an int, as
+        /// everything else replicated here is.
+        ///
+        /// Zero means nothing was weighed — either no fish, or a fish whose range was never
+        /// configured. Rolled weights are never zero, so the two cannot be confused.
+        /// </summary>
+        private readonly NetworkVariable<int> _caughtWeightTenths = new NetworkVariable<int>(
+            NoWeight,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server);
+
         public ulong OccupantClientId => _occupantClientId.Value;
 
         public bool IsOccupied => _occupantClientId.Value != NoOccupant;
@@ -273,6 +306,7 @@ namespace FishingZone.Fishing
             _phase.OnValueChanged += HandlePhaseChanged;
             _isResisting.OnValueChanged += HandleResistingChanged;
             _caughtFishId.OnValueChanged += HandleCaughtFishChanged;
+            _caughtWeightTenths.OnValueChanged += HandleCaughtWeightChanged;
 
             if (IsServer)
             {
@@ -291,6 +325,7 @@ namespace FishingZone.Fishing
             _phase.OnValueChanged -= HandlePhaseChanged;
             _isResisting.OnValueChanged -= HandleResistingChanged;
             _caughtFishId.OnValueChanged -= HandleCaughtFishChanged;
+            _caughtWeightTenths.OnValueChanged -= HandleCaughtWeightChanged;
 
             if (IsServer && NetworkManager.Singleton != null)
             {
@@ -346,7 +381,7 @@ namespace FishingZone.Fishing
                 switch (phase)
                 {
                     case FishingPhase.Caught:
-                        return DescribeCatch(_caughtNamedText, _caughtText);
+                        return DescribeCatch(_caughtWeighedText, _caughtNamedText, _caughtText);
                     case FishingPhase.Hooked:
                         return _isResisting.Value ? _resistText : _hookedText;
                     case FishingPhase.Bite:
@@ -361,7 +396,7 @@ namespace FishingZone.Fishing
             switch (phase)
             {
                 case FishingPhase.Caught:
-                    return DescribeCatch(_busyCaughtNamedText, _busyCaughtText);
+                    return DescribeCatch(_busyCaughtWeighedText, _busyCaughtNamedText, _busyCaughtText);
                 case FishingPhase.Hooked:
                     return _busyHookedText;
                 case FishingPhase.Bite:
@@ -494,12 +529,20 @@ namespace FishingZone.Fishing
                 // the fish: the catch is the one moment that puts one back.
                 FishDefinition caught = ChooseCatchOnServer();
 
+                // Rolled here, once, and never again: the phase carries the result for its whole
+                // moment, and reading it cannot change it. A prompt refreshing, a crewmate looking
+                // over, or a peer receiving the value late all read the same number.
+                int weightTenths = RollCatchWeightOnServer(caught);
+
                 SetPhaseOnServer(FishingPhase.Caught);
                 _caughtFishId.Value = caught != null ? caught.Id : FishDefinition.NoFish;
+                _caughtWeightTenths.Value = weightTenths;
 
-                GameLog.Info(LogCategory.Fish, caught != null
-                    ? $"Client {occupant} landed a {caught.DisplayName} at '{name}'."
-                    : $"Client {occupant} landed a catch at '{name}'.");
+                GameLog.Info(LogCategory.Fish, caught == null
+                    ? $"Client {occupant} landed a catch at '{name}'."
+                    : weightTenths == NoWeight
+                        ? $"Client {occupant} landed a {caught.DisplayName} at '{name}'."
+                        : $"Client {occupant} landed a {caught.DisplayName} of {FormatWeight(weightTenths)} kg at '{name}'.");
                 return;
             }
 
@@ -918,6 +961,7 @@ namespace FishingZone.Fishing
             // moved on, and no fish can survive into the next cast. The catch itself sets it again
             // immediately afterwards, which is the one place it is ever anything else.
             _caughtFishId.Value = FishDefinition.NoFish;
+            _caughtWeightTenths.Value = NoWeight;
         }
 
         /// <summary>
@@ -973,6 +1017,55 @@ namespace FishingZone.Fishing
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Puts the catch on the scale.
+        ///
+        /// Server only. No message carries a weight, so there is nothing for a client to submit and
+        /// no field to submit it in; the number exists only after the server has already decided
+        /// which fish it was.
+        ///
+        /// Drawn in tenths rather than in kilograms and rounded afterwards. Rounding a kilogram
+        /// figure could land a hair outside the range a designer typed, and could round a very small
+        /// fish down to nothing at all, which is the value that means no fish was weighed.
+        ///
+        /// A fish whose range was never configured is not given an invented one. It weighs nothing,
+        /// which the prompt reads as a fish without a scale rather than as a fish of no weight, and
+        /// the mistake is named loudly enough to be fixed.
+        /// </summary>
+        private int RollCatchWeightOnServer(FishDefinition fish)
+        {
+            if (fish == null)
+            {
+                return NoWeight;
+            }
+
+            if (!fish.HasValidWeightRange)
+            {
+                GameLog.Error(LogCategory.Fish,
+                    $"'{fish.DisplayName}' (id {fish.Id}) has no usable weight range: Min Weight Kg is " +
+                    $"{fish.MinWeightKg} and Max Weight Kg is {fish.MaxWeightKg}. Both must be above zero " +
+                    "and the maximum must not be below the minimum. The catch stands, unweighed.");
+                return NoWeight;
+            }
+
+            // At least one tenth, so the lightest legal fish still registers on the scale rather
+            // than reading as nothing caught. Range's integer form excludes its upper bound.
+            int minTenths = Mathf.Max(1, Mathf.RoundToInt(fish.MinWeightKg * 10f));
+            int maxTenths = Mathf.Max(minTenths, Mathf.RoundToInt(fish.MaxWeightKg * 10f));
+
+            return Random.Range(minTenths, maxTenths + 1);
+        }
+
+        /// <summary>
+        /// Tenths of a kilogram as a number with one decimal place, built from the whole number
+        /// rather than from a float, so every machine writes the same digits and none of them writes
+        /// a comma where another writes a point.
+        /// </summary>
+        private static string FormatWeight(int tenths)
+        {
+            return $"{tenths / 10}.{tenths % 10}";
         }
 
         /// <summary>
@@ -1089,20 +1182,42 @@ namespace FishingZone.Fishing
         }
 
         /// <summary>
+        /// The scale travels on its own message and may land a moment after the fish does. Reading
+        /// it never changes it — the number was settled on the server when the catch happened — so
+        /// this only asks the prompt to say it.
+        /// </summary>
+        private void HandleCaughtWeightChanged(int previous, int current)
+        {
+            RefreshLocalPrompt();
+        }
+
+        /// <summary>
         /// Names the fish if this peer can, and falls back to saying only that something was landed
         /// if it cannot: the number may not have arrived yet, or the station may have had nothing to
         /// choose from. Substituted rather than formatted, so a placeholder edited into something
         /// malformed loses the name rather than throwing.
         /// </summary>
-        private string DescribeCatch(string namedText, string fallbackText)
+        private string DescribeCatch(string weighedText, string namedText, string fallbackText)
         {
             FishDefinition fish = FindFish(_caughtFishId.Value);
-            if (fish == null || string.IsNullOrEmpty(namedText))
+            if (fish == null)
             {
                 return fallbackText;
             }
 
-            return namedText.Replace("{0}", fish.DisplayName);
+            int tenths = _caughtWeightTenths.Value;
+            if (tenths != NoWeight && !string.IsNullOrEmpty(weighedText))
+            {
+                return weighedText
+                    .Replace("{0}", fish.DisplayName)
+                    .Replace("{1}", FormatWeight(tenths));
+            }
+
+            // Named but unweighed: either the scale has not arrived yet, or this fish was never
+            // given a range. Saying what it was beats saying nothing, and beats inventing a number.
+            return string.IsNullOrEmpty(namedText)
+                ? fallbackText
+                : namedText.Replace("{0}", fish.DisplayName);
         }
 
         /// <summary>

@@ -30,9 +30,35 @@ namespace FishingZone.Fishing
         [SerializeField]
         private string _displayName = "Fish";
 
+        /// <summary>
+        /// The lightest and heaviest this kind of fish comes. Kilograms, because that is what a
+        /// deck scale reads and what the prompt will say.
+        ///
+        /// A range and nothing more. How likely a big one is, what it is worth and whether it beats
+        /// anybody's record are all questions for systems that do not exist.
+        /// </summary>
+        [SerializeField]
+        private float _minWeightKg = 1f;
+
+        [SerializeField]
+        private float _maxWeightKg = 5f;
+
         public int Id => _id;
 
         public string DisplayName => _displayName;
+
+        public float MinWeightKg => _minWeightKg;
+
+        public float MaxWeightKg => _maxWeightKg;
+
+        /// <summary>
+        /// Whether this fish can be weighed at all. Kept apart from <see cref="IsValid"/> on
+        /// purpose: a fish that is properly named but carelessly weighed should still be catchable
+        /// and still be named, with the scale left out rather than guessed at.
+        ///
+        /// A weightless or negative fish is a mistake, and so is a maximum below the minimum.
+        /// </summary>
+        public bool HasValidWeightRange => _minWeightKg > 0f && _maxWeightKg >= _minWeightKg;
 
         /// <summary>
         /// Whether this is filled in enough to be caught. Checked rather than assumed, because an
