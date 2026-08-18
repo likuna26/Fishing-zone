@@ -1111,10 +1111,22 @@ MonoBehaviour:
   _busyBiteText: Someone has a bite here
   _hookedText: Hooked! Release to stop, or leave the station
   _busyHookedText: Someone has one on the line
+  _resistText: "It's running \u2014 let go of the reel!"
+  _caughtText: You landed a catch!
+  _busyCaughtText: Someone landed a catch
+  _caughtNamedText: You landed a {0}!
+  _busyCaughtNamedText: Someone landed a {0}
+  _fishPool:
+  - {fileID: 11400000, guid: fdffa0a43e7a2ef44a7fd46e3557f69a, type: 2}
+  - {fileID: 11400000, guid: eec76895d2f7b5841af539218992649d, type: 2}
+  - {fileID: 11400000, guid: e56412622980aea48a546291654b4201, type: 2}
   _minBiteDelay: 3
   _maxBiteDelay: 10
   _biteWindow: 2
   _reelDuration: 4
+  _minResistDelay: 1.5
+  _maxResistDelay: 3
+  _catchDisplaySeconds: 2
   _wrongRoleText: Only the Fisher may fish here
   _castAction: {fileID: 2883452151877530926, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
   _stopFishingAction: {fileID: -8590259650862159448, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
@@ -1195,10 +1207,22 @@ MonoBehaviour:
   _busyBiteText: Someone has a bite here
   _hookedText: Hooked! Release to stop, or leave the station
   _busyHookedText: Someone has one on the line
+  _resistText: "It's running \u2014 let go of the reel!"
+  _caughtText: You landed a catch!
+  _busyCaughtText: Someone landed a catch
+  _caughtNamedText: You landed a {0}!
+  _busyCaughtNamedText: Someone landed a {0}
+  _fishPool:
+  - {fileID: 11400000, guid: fdffa0a43e7a2ef44a7fd46e3557f69a, type: 2}
+  - {fileID: 11400000, guid: eec76895d2f7b5841af539218992649d, type: 2}
+  - {fileID: 11400000, guid: e56412622980aea48a546291654b4201, type: 2}
   _minBiteDelay: 3
   _maxBiteDelay: 10
   _biteWindow: 2
   _reelDuration: 4
+  _minResistDelay: 1.5
+  _maxResistDelay: 3
+  _catchDisplaySeconds: 2
   _wrongRoleText: Only the Fisher may fish here
   _castAction: {fileID: 2883452151877530926, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
   _stopFishingAction: {fileID: -8590259650862159448, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
