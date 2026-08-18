@@ -41,6 +41,18 @@ namespace FishingZone.Fishing
         /// anywhere, and nothing has been caught. This is the result of a reaction, and what a
         /// hooked line then leads to is for the mechanics that follow to decide.
         /// </summary>
-        Hooked = 3
+        Hooked = 3,
+
+        /// <summary>
+        /// The Fisher landed something, and the moment is being shown.
+        ///
+        /// Says nothing about what. There is no species here, no size, no rarity, no value, no item
+        /// and no fish: a catch worth describing needs somewhere to describe it, and that does not
+        /// exist yet. This is the beat in the loop that such a thing will one day hang from.
+        ///
+        /// Clears itself after a moment rather than waiting to be acknowledged, so a Fisher who
+        /// looks away does not come back to a station that has quietly stopped working.
+        /// </summary>
+        Caught = 4
     }
 }

@@ -76,6 +76,13 @@ namespace FishingZone.Fishing
         [SerializeField]
         private string _resistText = "It's running — let go of the reel!";
 
+        [SerializeField]
+        private string _caughtText = "You landed a catch!";
+
+        /// <summary>The crew's share of the moment, which is most of what makes it worth having.</summary>
+        [SerializeField]
+        private string _busyCaughtText = "Someone landed a catch";
+
         /// <summary>
         /// How long a cast waits before something takes an interest, drawn afresh each time.
         ///
@@ -114,6 +121,13 @@ namespace FishingZone.Fishing
 
         [SerializeField]
         private float _maxResistDelay = 3f;
+
+        /// <summary>
+        /// How long the catch is shown before the station is ready again. Long enough to be seen by
+        /// somebody looking at it, short enough that nobody has to wait to cast.
+        /// </summary>
+        [SerializeField]
+        private float _catchDisplaySeconds = 2f;
 
         [SerializeField]
         private string _wrongRoleText = "Only the Fisher may fish here";
@@ -293,6 +307,8 @@ namespace FishingZone.Fishing
             {
                 switch (phase)
                 {
+                    case FishingPhase.Caught:
+                        return _caughtText;
                     case FishingPhase.Hooked:
                         return _isResisting.Value ? _resistText : _hookedText;
                     case FishingPhase.Bite:
@@ -306,6 +322,8 @@ namespace FishingZone.Fishing
 
             switch (phase)
             {
+                case FishingPhase.Caught:
+                    return _busyCaughtText;
                 case FishingPhase.Hooked:
                     return _busyHookedText;
                 case FishingPhase.Bite:
@@ -393,6 +411,7 @@ namespace FishingZone.Fishing
             // still until the Fisher gives line.
             bool isTimed = phase == FishingPhase.Waiting
                            || phase == FishingPhase.Bite
+                           || phase == FishingPhase.Caught
                            || (phase == FishingPhase.Hooked && _reelHeld && !_isResisting.Value);
 
             if (!isTimed)
@@ -433,11 +452,20 @@ namespace FishingZone.Fishing
 
             if (phase == FishingPhase.Hooked)
             {
-                // The line is aboard and the station is free to be cast again. Nothing was caught:
-                // there is no fish here to catch, and what a reeled-in line yields is the next piece
-                // of work. The Fisher keeps their place.
+                // Something came aboard. What it was is a question for later; that it happened is
+                // the whole of what this records, and the Fisher keeps their place either way.
+                SetPhaseOnServer(FishingPhase.Caught);
+                GameLog.Info(LogCategory.Fish, $"Client {occupant} landed a catch at '{name}'.");
+                return;
+            }
+
+            if (phase == FishingPhase.Caught)
+            {
+                // The moment passes on its own. Nothing has to be pressed to clear it, so a Fisher
+                // who turned away to look at the water does not come back to a station that appears
+                // to have stopped working.
                 SetPhaseOnServer(FishingPhase.Idle);
-                GameLog.Info(LogCategory.Fish, $"Client {occupant} reeled the line in at '{name}'.");
+                GameLog.Info(LogCategory.Fish, $"'{name}' is clear and ready to cast again.");
                 return;
             }
 
@@ -827,6 +855,7 @@ namespace FishingZone.Fishing
             _phaseCountdown = phase == FishingPhase.Waiting ? Random.Range(_minBiteDelay, _maxBiteDelay)
                 : phase == FishingPhase.Bite ? _biteWindow
                 : phase == FishingPhase.Hooked ? _reelDuration
+                : phase == FishingPhase.Caught ? _catchDisplaySeconds
                 : 0f;
 
             if (phase == FishingPhase.Hooked)
