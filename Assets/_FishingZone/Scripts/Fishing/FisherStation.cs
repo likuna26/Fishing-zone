@@ -114,6 +114,13 @@ namespace FishingZone.Fishing
         private string _busyCaughtWeighedText = "Someone landed a {0} — {1} kg";
 
         /// <summary>
+        /// Said to the Fisher who landed it, once their tally is known. There is no crewmate's
+        /// version on purpose: how somebody else's day is going is theirs to mention.
+        /// </summary>
+        [SerializeField]
+        private string _caughtCountedText = "You landed a {0} — {1} kg!  ({2} this trip)";
+
+        /// <summary>
         /// What may be caught here, chosen from at random by the server. Empty is a configuration
         /// mistake rather than a kind of fishing: the loop still runs, and says loudly that it had
         /// nothing to choose from.
@@ -243,6 +250,23 @@ namespace FishingZone.Fishing
             NetworkVariableReadPermission.Everyone,
             NetworkVariableWritePermission.Server);
 
+        /// <summary>
+        /// How many this Fisher had landed the instant this one came aboard.
+        ///
+        /// A snapshot of a tally, not the tally itself. The count lives in the crew's catch log,
+        /// which outlives scenes and stations; this is the number that was true at the moment of
+        /// this catch, kept only for as long as the catch is being shown.
+        ///
+        /// Zero means it is not known — no fish, no weight, or no log to ask — and the prompt then
+        /// says what it said before there was a tally at all.
+        ///
+        /// Replicated because station state is, but only the Fisher who landed it is shown it.
+        /// </summary>
+        private readonly NetworkVariable<int> _caughtSessionCount = new NetworkVariable<int>(
+            0,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server);
+
         public ulong OccupantClientId => _occupantClientId.Value;
 
         public bool IsOccupied => _occupantClientId.Value != NoOccupant;
@@ -307,6 +331,7 @@ namespace FishingZone.Fishing
             _isResisting.OnValueChanged += HandleResistingChanged;
             _caughtFishId.OnValueChanged += HandleCaughtFishChanged;
             _caughtWeightTenths.OnValueChanged += HandleCaughtWeightChanged;
+            _caughtSessionCount.OnValueChanged += HandleCaughtCountChanged;
 
             if (IsServer)
             {
@@ -326,6 +351,7 @@ namespace FishingZone.Fishing
             _isResisting.OnValueChanged -= HandleResistingChanged;
             _caughtFishId.OnValueChanged -= HandleCaughtFishChanged;
             _caughtWeightTenths.OnValueChanged -= HandleCaughtWeightChanged;
+            _caughtSessionCount.OnValueChanged -= HandleCaughtCountChanged;
 
             if (IsServer && NetworkManager.Singleton != null)
             {
@@ -381,7 +407,7 @@ namespace FishingZone.Fishing
                 switch (phase)
                 {
                     case FishingPhase.Caught:
-                        return DescribeCatch(_caughtWeighedText, _caughtNamedText, _caughtText);
+                        return DescribeOwnCatch();
                     case FishingPhase.Hooked:
                         return _isResisting.Value ? _resistText : _hookedText;
                     case FishingPhase.Bite:
@@ -964,6 +990,7 @@ namespace FishingZone.Fishing
             // immediately afterwards, which is the one place it is ever anything else.
             _caughtFishId.Value = FishDefinition.NoFish;
             _caughtWeightTenths.Value = NoWeight;
+            _caughtSessionCount.Value = 0;
         }
 
         /// <summary>
@@ -1064,6 +1091,10 @@ namespace FishingZone.Fishing
             log.RecordCatchOnServer(clientId, fishId, weightTenths);
 
             int sessionCatches = log.GetCatchCount(clientId);
+
+            // The same number the line below reports, kept where the prompt can reach it. Taken
+            // from the log rather than counted here, so nothing on any machine adds anything up.
+            _caughtSessionCount.Value = sessionCatches;
 
             GameLog.Info(LogCategory.Fish,
                 $"Client {clientId} stored catch: fish id {fishId}, {FormatWeight(weightTenths)} kg. " +
@@ -1243,11 +1274,51 @@ namespace FishingZone.Fishing
         }
 
         /// <summary>
+        /// The tally travels on its own message and may land after the fish and the scale do.
+        /// Reading it never changes it — the server settled it when the catch happened — so this
+        /// only asks the prompt to say it.
+        /// </summary>
+        private void HandleCaughtCountChanged(int previous, int current)
+        {
+            RefreshLocalPrompt();
+        }
+
+        /// <summary>
         /// Names the fish if this peer can, and falls back to saying only that something was landed
         /// if it cannot: the number may not have arrived yet, or the station may have had nothing to
         /// choose from. Substituted rather than formatted, so a placeholder edited into something
         /// malformed loses the name rather than throwing.
         /// </summary>
+        /// <summary>
+        /// What the Fisher who landed it reads: the same account everyone else gets, with their
+        /// tally on the end once the server has said what it is.
+        ///
+        /// A tally of nought means it is not known rather than that nothing was caught — no fish, no
+        /// weight, or no log to ask — and in that case this says exactly what it said before there
+        /// was a tally at all.
+        /// </summary>
+        private string DescribeOwnCatch()
+        {
+            int sessionCount = _caughtSessionCount.Value;
+            FishDefinition fish = FindFish(_caughtFishId.Value);
+            int tenths = _caughtWeightTenths.Value;
+
+            bool canCount = sessionCount > 0
+                            && fish != null
+                            && tenths != NoWeight
+                            && !string.IsNullOrEmpty(_caughtCountedText);
+
+            if (!canCount)
+            {
+                return DescribeCatch(_caughtWeighedText, _caughtNamedText, _caughtText);
+            }
+
+            return _caughtCountedText
+                .Replace("{0}", fish.DisplayName)
+                .Replace("{1}", FormatWeight(tenths))
+                .Replace("{2}", sessionCount.ToString());
+        }
+
         private string DescribeCatch(string weighedText, string namedText, string fallbackText)
         {
             FishDefinition fish = FindFish(_caughtFishId.Value);
