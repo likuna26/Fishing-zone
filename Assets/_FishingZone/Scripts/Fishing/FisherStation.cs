@@ -543,6 +543,8 @@ namespace FishingZone.Fishing
                     : weightTenths == NoWeight
                         ? $"Client {occupant} landed a {caught.DisplayName} at '{name}'."
                         : $"Client {occupant} landed a {caught.DisplayName} of {FormatWeight(weightTenths)} kg at '{name}'.");
+
+                StoreCatchOnServer(occupant);
                 return;
             }
 
@@ -1017,6 +1019,53 @@ namespace FishingZone.Fishing
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Writes the catch down against the Fisher who made it.
+        ///
+        /// Reads the two values back out of the variables that were just settled, rather than being
+        /// handed them, so what is kept is provably the same pair everyone was shown. Nothing is
+        /// rolled again and nothing is worked out a second time.
+        ///
+        /// Called once, from the single transition that lands a fish, which is why one catch cannot
+        /// become two: a prompt asked to refresh, a crewmate glancing over, the moment timing out,
+        /// or the Fisher quitting during it all run elsewhere and never reach here.
+        ///
+        /// A catch missing either half is shown but not kept. Half a record is worse than none — it
+        /// would read later as a fish that weighed nothing, or a weight belonging to no fish — and
+        /// the reason it happened has already been logged where it happened.
+        /// </summary>
+        private void StoreCatchOnServer(ulong clientId)
+        {
+            int fishId = _caughtFishId.Value;
+            int weightTenths = _caughtWeightTenths.Value;
+
+            if (fishId == FishDefinition.NoFish || weightTenths == NoWeight)
+            {
+                GameLog.Warn(LogCategory.Fish,
+                    $"The catch at '{name}' was shown to client {clientId} but not kept: it has " +
+                    $"{(fishId == FishDefinition.NoFish ? "no fish" : "no weight")}. " +
+                    "Fix the station's Fish Pool or that fish's weight range.");
+                return;
+            }
+
+            CrewCatchLog log = ServiceRegistry.Get<CrewCatchLog>();
+            if (log == null)
+            {
+                // ServiceRegistry has already said what was missing. Said again here because a crew
+                // fishing all evening into nothing at all is worth more than one line of warning.
+                GameLog.Error(LogCategory.Fish,
+                    $"No crew catch log, so client {clientId}'s catch at '{name}' was not kept. " +
+                    "Add a Crew Catch Log to the services object in Bootstrap.");
+                return;
+            }
+
+            int sessionCatches = log.RecordCatchOnServer(clientId, fishId, weightTenths);
+
+            GameLog.Info(LogCategory.Fish,
+                $"Client {clientId} stored catch: fish id {fishId}, {FormatWeight(weightTenths)} kg. " +
+                $"Session catches: {sessionCatches}.");
         }
 
         /// <summary>
