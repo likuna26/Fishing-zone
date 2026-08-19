@@ -14,3 +14,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: FishingZone::FishingZone.Fishing.FishDefinition
   _id: 3
   _displayName: Mackerel
+  _minWeightKg: 0.4
+  _maxWeightKg: 1.6

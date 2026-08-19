@@ -14,3 +14,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: FishingZone::FishingZone.Fishing.FishDefinition
   _id: 2
   _displayName: Cod
+  _minWeightKg: 1.5
+  _maxWeightKg: 12
