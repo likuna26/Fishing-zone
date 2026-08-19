@@ -73,21 +73,20 @@ namespace FishingZone.Fishing
         }
 
         /// <summary>
-        /// Writes down a fish somebody landed, and answers how many they have now.
+        /// Writes down a fish somebody landed.
         ///
-        /// The count comes back rather than being available to ask for, because the one thing that
-        /// needs it is the line printed the moment a catch is stored. Totals, tallies and anything
-        /// else a crew might eventually want counted belong to whatever system eventually wants
-        /// them, not to the thing that keeps the list.
+        /// Answers nothing. A method that adds something is a poor way to ask how much there is —
+        /// the only way to learn the count would be to land another fish — so asking is a separate
+        /// question with a separate answer.
         ///
         /// Server only. There is no path here that does not begin on the machine that decided the
         /// catch, and this refuses anyway rather than trusting that to stay true.
         /// </summary>
-        public int RecordCatchOnServer(ulong clientId, int fishId, int weightTenths)
+        public void RecordCatchOnServer(ulong clientId, int fishId, int weightTenths)
         {
             if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer)
             {
-                return 0;
+                return;
             }
 
             if (!_catchesByClient.TryGetValue(clientId, out List<StoredCatch> catches))
@@ -97,8 +96,28 @@ namespace FishingZone.Fishing
             }
 
             catches.Add(new StoredCatch(fishId, weightTenths));
+        }
 
-            return catches.Count;
+        /// <summary>
+        /// How many this client has landed since they connected. None, for somebody who has landed
+        /// none, and none on a machine that is not the server: the list exists nowhere else.
+        ///
+        /// Asking leaves no trace. A client nobody has recorded a catch for stays absent from the
+        /// dictionary rather than gaining an empty list, so counting cannot quietly populate the
+        /// thing being counted.
+        ///
+        /// The count and nothing beyond it. Totals by weight, tallies by species and anything else
+        /// a crew might eventually want counted belong to whatever system eventually wants them,
+        /// designed against what it actually needs rather than guessed at here.
+        /// </summary>
+        public int GetCatchCount(ulong clientId)
+        {
+            if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer)
+            {
+                return 0;
+            }
+
+            return _catchesByClient.TryGetValue(clientId, out List<StoredCatch> catches) ? catches.Count : 0;
         }
 
         /// <summary>

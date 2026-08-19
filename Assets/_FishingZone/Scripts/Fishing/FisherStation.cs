@@ -1061,7 +1061,9 @@ namespace FishingZone.Fishing
                 return;
             }
 
-            int sessionCatches = log.RecordCatchOnServer(clientId, fishId, weightTenths);
+            log.RecordCatchOnServer(clientId, fishId, weightTenths);
+
+            int sessionCatches = log.GetCatchCount(clientId);
 
             GameLog.Info(LogCategory.Fish,
                 $"Client {clientId} stored catch: fish id {fishId}, {FormatWeight(weightTenths)} kg. " +
