@@ -44,6 +44,13 @@ namespace FishingZone.Boat
         [SerializeField]
         private string _busyText = "Wheel in use";
 
+        /// <summary>
+        /// Said to anyone who could not steer if they tried. The wheel refuses them either way; this
+        /// is only the difference between being told and finding out by pressing.
+        /// </summary>
+        [SerializeField]
+        private string _wrongRoleText = "Only the Navigator may steer";
+
         private readonly NetworkVariable<ulong> _occupantClientId = new NetworkVariable<ulong>(
             NoOccupant,
             NetworkVariableReadPermission.Everyone,
@@ -134,12 +141,35 @@ namespace FishingZone.Boat
         /// </summary>
         public string GetInteractionText(GameObject interactor)
         {
-            if (!IsOccupied)
+            // Holding it comes before being allowed it, which is the reverse of how the fishing
+            // stations read and is deliberate. Those refuse when the crew registry is missing; this
+            // one allows, on the grounds that a crew unable to steer is worse than a role going
+            // unchecked. So somebody can be at this wheel whom the copy on their player object says
+            // should not be, and telling a seated driver they may not steer would be absurd. What
+            // they can plainly see comes first.
+            if (IsLocalOccupant)
             {
-                return _enterText;
+                return _exitText;
             }
 
-            return IsLocalOccupant ? _exitText : _busyText;
+            // Being the wrong job is reported ahead of the wheel merely being taken: it is the
+            // firmer of the two reasons and the one that will not change by waiting.
+            //
+            // The role comes from the copy carried on the player object, which is the one place this
+            // class is allowed to consult it. A determined client could edit that copy in its own
+            // memory, and the worst it would buy them is a wheel their own screen offers and the
+            // server then refuses. It decides what a player reads, never what they may do.
+            if (PlayerRoleController.GetRoleOf(interactor) != PlayerRole.Navigator)
+            {
+                return _wrongRoleText;
+            }
+
+            if (IsOccupied)
+            {
+                return _busyText;
+            }
+
+            return _enterText;
         }
 
         public void Interact(GameObject interactor)
