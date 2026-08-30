@@ -253,6 +253,38 @@ namespace FishingZone.Boat
             {
                 ReleaseLocalSeat();
             }
+
+            // Everyone, not only the two players the branches above concern. A crewmate standing and
+            // watching the wheel is in neither case, and their prompt would otherwise go on offering
+            // a wheel somebody else had just taken until they looked away and back.
+            RefreshLocalPrompt();
+        }
+
+        /// <summary>
+        /// Asks the local player to read this prompt again.
+        ///
+        /// Occupancy is the only thing the wheel's text depends on that can change while somebody
+        /// stands still looking at it, and the text is read once when a target is first looked at.
+        /// So the moment it changes, everybody is asked to read it again.
+        ///
+        /// Refreshing whatever the player happens to be looking at, rather than insisting it is this
+        /// wheel, keeps this from having to know: re-reading another object's prompt produces the
+        /// same words it already had. It re-raises an event with the value already held, so it can
+        /// disturb nothing, and it is safe before any player exists.
+        /// </summary>
+        private static void RefreshLocalPrompt()
+        {
+            NetworkObject playerObject = NetworkManager.Singleton?.LocalClient?.PlayerObject;
+            if (playerObject == null)
+            {
+                return;
+            }
+
+            PlayerInteraction interaction = playerObject.GetComponent<PlayerInteraction>();
+            if (interaction != null)
+            {
+                interaction.RefreshFocus();
+            }
         }
 
         private void TakeLocalSeat()
