@@ -121,6 +121,41 @@ namespace FishingZone.Fishing
         }
 
         /// <summary>
+        /// How many the whole crew has landed between them since the session began, and none on a
+        /// machine that is not the server.
+        ///
+        /// A separate question from the one above rather than a sum the caller could have worked out,
+        /// because the caller cannot: the dictionary is private, the client ids are not published,
+        /// and handing out the keys merely so somebody could add up the values would expose far more
+        /// than the total. This is the total and only the total.
+        ///
+        /// Counted on each call rather than kept as a running tally. A tally would be a second copy
+        /// of a number the lists already hold, and the disconnect path would have to remember to
+        /// correct it; the lists are few and short, and this is asked when a scene loads.
+        ///
+        /// Leaves no trace, like the per-client count: reading the values of a dictionary creates
+        /// nothing in it.
+        /// </summary>
+        public int GetCrewCatchCount()
+        {
+            if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer)
+            {
+                return 0;
+            }
+
+            int total = 0;
+
+            // Dictionary hands back a struct enumerator over its values, so this walks them without
+            // allocating and without building any intermediate collection.
+            foreach (List<StoredCatch> catches in _catchesByClient.Values)
+            {
+                total += catches.Count;
+            }
+
+            return total;
+        }
+
+        /// <summary>
         /// A crewmate who leaves takes their catch with them. Only theirs: everybody still aboard
         /// keeps what they landed.
         /// </summary>
