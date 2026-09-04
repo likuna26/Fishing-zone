@@ -321,6 +321,25 @@ namespace FishingZone.Fishing
         /// <summary>So a station with no reel to turn says so, rather than quietly refusing to move.</summary>
         private bool _hasWarnedMissingReelAction;
 
+        /// <summary>
+        /// The water this station is fishing, found once and kept.
+        ///
+        /// Safe to cache because the two share exactly one lifetime: both are placed in the
+        /// expedition scene and both are destroyed when the crew sails home, so this reference
+        /// cannot survive into a voyage it does not belong to. Server-side only — no client ever
+        /// looks it up, because no client is told what the water is doing.
+        ///
+        /// Not fetched from ServiceRegistry, which is for the handful of things that outlive a scene
+        /// load. This outlives nothing on purpose.
+        /// </summary>
+        private WaterActivity _waterActivity;
+
+        /// <summary>
+        /// Whether the search above has been made. Kept apart from the reference so a scene with no
+        /// water is searched once rather than on every cast, and says so once rather than every time.
+        /// </summary>
+        private bool _hasSearchedWaterActivity;
+
         private bool IsLocalOccupant =>
             NetworkManager.Singleton != null && _occupantClientId.Value == NetworkManager.Singleton.LocalClientId;
 
@@ -967,7 +986,7 @@ namespace FishingZone.Fishing
             // Wound on the way in rather than by whoever happens to be making the transition, so a
             // phase that runs on a clock cannot be entered without one. Idle alone keeps no time:
             // a station at rest is waiting for nothing.
-            _phaseCountdown = phase == FishingPhase.Waiting ? Random.Range(_minBiteDelay, _maxBiteDelay)
+            _phaseCountdown = phase == FishingPhase.Waiting ? DrawBiteDelayOnServer()
                 : phase == FishingPhase.Bite ? _biteWindow
                 : phase == FishingPhase.Hooked ? _reelDuration
                 : phase == FishingPhase.Caught ? _catchDisplaySeconds
@@ -991,6 +1010,61 @@ namespace FishingZone.Fishing
             _caughtFishId.Value = FishDefinition.NoFish;
             _caughtWeightTenths.Value = NoWeight;
             _caughtSessionCount.Value = 0;
+        }
+
+        /// <summary>
+        /// How long this cast waits, given what the water is doing.
+        ///
+        /// Server only. Called from the one place a station enters Waiting, and the conditional
+        /// above evaluates it only on that branch, so no other transition asks and no client ever
+        /// runs it.
+        ///
+        /// Read once, here, and never again. The result becomes a plain number in the countdown, so
+        /// water that turns a second later cannot lengthen or shorten a wait already under way. That
+        /// is what makes the Observer's call worth acting on at the moment it is made rather than
+        /// worth acting on at leisure — and it is the same rule every other clock in this file
+        /// follows: drawn on the way in, read only by the phase that owns it.
+        ///
+        /// A scene with no water fishes exactly as it did before any of this existed. Failing open
+        /// is the right way round: losing the whole fishing loop to a missing object on deck would
+        /// be far worse than losing the Observer's part of it, and the miss is named loudly enough
+        /// to be fixed.
+        /// </summary>
+        private float DrawBiteDelayOnServer()
+        {
+            float delay = Random.Range(_minBiteDelay, _maxBiteDelay);
+
+            WaterActivity water = FindWaterActivity();
+
+            return water == null ? delay : delay * water.BiteDelayMultiplier;
+        }
+
+        /// <summary>
+        /// Finds the water once and remembers the answer, including when the answer is nothing.
+        ///
+        /// Searched rather than assigned in the Inspector so a station is not made unusable by a
+        /// reference nobody remembered to drag, and searched once rather than per cast because the
+        /// object it looks for shares this one's lifetime exactly.
+        /// </summary>
+        private WaterActivity FindWaterActivity()
+        {
+            if (_hasSearchedWaterActivity)
+            {
+                return _waterActivity;
+            }
+
+            _hasSearchedWaterActivity = true;
+            _waterActivity = FindFirstObjectByType<WaterActivity>();
+
+            if (_waterActivity == null)
+            {
+                GameLog.Error(LogCategory.Fish,
+                    $"'{name}' found no Water Activity in this scene, so bites will keep their " +
+                    "unmodified timing and the Lookout has nothing to report. Add a Water Activity " +
+                    "to the expedition scene.");
+            }
+
+            return _waterActivity;
         }
 
         /// <summary>
