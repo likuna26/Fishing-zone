@@ -1215,7 +1215,7 @@ MonoBehaviour:
   _busyCaughtNamedText: Someone landed a {0}
   _caughtWeighedText: "You landed a {0} \u2014 {1} kg!"
   _busyCaughtWeighedText: "Someone landed a {0} \u2014 {1} kg"
-  _caughtCountedText: "You landed a {0} \u2014 {1} kg!  ({2} this trip)"
+  _caughtCountedText: "You landed a {0} \u2014 {1} kg! ({2} this session)"
   _fishPool:
   - {fileID: 11400000, guid: fdffa0a43e7a2ef44a7fd46e3557f69a, type: 2}
   - {fileID: 11400000, guid: eec76895d2f7b5841af539218992649d, type: 2}
@@ -1314,7 +1314,7 @@ MonoBehaviour:
   _busyCaughtNamedText: Someone landed a {0}
   _caughtWeighedText: "You landed a {0} \u2014 {1} kg!"
   _busyCaughtWeighedText: "Someone landed a {0} \u2014 {1} kg"
-  _caughtCountedText: "You landed a {0} \u2014 {1} kg!  ({2} this trip)"
+  _caughtCountedText: "You landed a {0} \u2014 {1} kg! ({2} this session)"
   _fishPool:
   - {fileID: 11400000, guid: fdffa0a43e7a2ef44a7fd46e3557f69a, type: 2}
   - {fileID: 11400000, guid: eec76895d2f7b5841af539218992649d, type: 2}
