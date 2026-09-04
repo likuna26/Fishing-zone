@@ -118,7 +118,7 @@ namespace FishingZone.Fishing
         /// version on purpose: how somebody else's day is going is theirs to mention.
         /// </summary>
         [SerializeField]
-        private string _caughtCountedText = "You landed a {0} — {1} kg!  ({2} this trip)";
+        private string _caughtCountedText = "You landed a {0} — {1} kg!  ({2} this session)";
 
         /// <summary>
         /// What may be caught here, chosen from at random by the server. Empty is a configuration
