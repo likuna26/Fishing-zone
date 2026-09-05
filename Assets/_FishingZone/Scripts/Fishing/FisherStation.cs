@@ -341,24 +341,8 @@ namespace FishingZone.Fishing
         /// <summary>So a scene nobody has marked out says so once, rather than once per cast.</summary>
         private bool _hasWarnedMissingFishingGrounds;
 
-        /// <summary>
-        /// The water this station is fishing, found once and kept.
-        ///
-        /// Safe to cache because the two share exactly one lifetime: both are placed in the
-        /// expedition scene and both are destroyed when the crew sails home, so this reference
-        /// cannot survive into a voyage it does not belong to. Server-side only — no client ever
-        /// looks it up, because no client is told what the water is doing.
-        ///
-        /// Not fetched from ServiceRegistry, which is for the handful of things that outlive a scene
-        /// load. This outlives nothing on purpose.
-        /// </summary>
-        private WaterActivity _waterActivity;
-
-        /// <summary>
-        /// Whether the search above has been made. Kept apart from the reference so a scene with no
-        /// water is searched once rather than on every cast, and says so once rather than every time.
-        /// </summary>
-        private bool _hasSearchedWaterActivity;
+        /// <summary>So a ground with no water of its own says so once, rather than once per cast.</summary>
+        private bool _hasWarnedMissingWaterActivity;
 
         private bool IsLocalOccupant =>
             NetworkManager.Singleton != null && _occupantClientId.Value == NetworkManager.Singleton.LocalClientId;
@@ -1096,18 +1080,50 @@ namespace FishingZone.Fishing
         /// worth acting on at leisure — and it is the same rule every other clock in this file
         /// follows: drawn on the way in, read only by the phase that owns it.
         ///
-        /// A scene with no water fishes exactly as it did before any of this existed. Failing open
-        /// is the right way round: losing the whole fishing loop to a missing object on deck would
-        /// be far worse than losing the Observer's part of it, and the miss is named loudly enough
-        /// to be fixed.
+        /// Water with nothing set up on it fishes exactly as it did before any of this existed.
+        /// Failing open is the right way round: losing the whole fishing loop to a missing component
+        /// would be far worse than losing the Observer's part of it, and the miss is named loudly
+        /// enough to be fixed.
         /// </summary>
         private float DrawBiteDelayOnServer()
         {
             float delay = Random.Range(_minBiteDelay, _maxBiteDelay);
 
-            WaterActivity water = FindWaterActivity();
+            // Asked where the boat is, not once for the whole voyage. The water belongs to the
+            // ground below it, so a crew that crossed to another stretch is fishing different water
+            // and a remembered answer would be the last place's.
+            WaterActivity water = WaterActivity.Under(transform.position);
 
-            return water == null ? delay : delay * water.BiteDelayMultiplier;
+            if (water == null)
+            {
+                WarnMissingWaterActivity();
+                return delay;
+            }
+
+            return delay * water.BiteDelayMultiplier;
+        }
+
+        /// <summary>
+        /// Said once per station, because a ground somebody forgot to give water to is a thing to
+        /// fix in the editor and not a thing to hear about on every cast.
+        ///
+        /// Reached only from a cast the server has already accepted, which means the boat was over a
+        /// ground — or that the scene marks out none at all, which IsOverFishingGround has said
+        /// already. Either way what is missing is the water rather than the place.
+        /// </summary>
+        private void WarnMissingWaterActivity()
+        {
+            if (_hasWarnedMissingWaterActivity)
+            {
+                return;
+            }
+
+            _hasWarnedMissingWaterActivity = true;
+
+            GameLog.Error(LogCategory.Fish,
+                $"'{name}' cast into water with no Water Activity on it, so bites keep their " +
+                "unmodified timing and the Lookout has nothing to report there. Add a Water Activity " +
+                "to each Fishing Ground in the expedition scene.");
         }
 
         /// <summary>
@@ -1153,34 +1169,6 @@ namespace FishingZone.Fishing
             GameLog.Error(LogCategory.Fish,
                 $"'{name}' found no Fishing Grounds in this scene, so the crew may fish anywhere. " +
                 "Add a Fishing Ground to the expedition scene to give the Navigator somewhere to take them.");
-        }
-
-        /// <summary>
-        /// Finds the water once and remembers the answer, including when the answer is nothing.
-        ///
-        /// Searched rather than assigned in the Inspector so a station is not made unusable by a
-        /// reference nobody remembered to drag, and searched once rather than per cast because the
-        /// object it looks for shares this one's lifetime exactly.
-        /// </summary>
-        private WaterActivity FindWaterActivity()
-        {
-            if (_hasSearchedWaterActivity)
-            {
-                return _waterActivity;
-            }
-
-            _hasSearchedWaterActivity = true;
-            _waterActivity = FindFirstObjectByType<WaterActivity>();
-
-            if (_waterActivity == null)
-            {
-                GameLog.Error(LogCategory.Fish,
-                    $"'{name}' found no Water Activity in this scene, so bites will keep their " +
-                    "unmodified timing and the Lookout has nothing to report. Add a Water Activity " +
-                    "to the expedition scene.");
-            }
-
-            return _waterActivity;
         }
 
         /// <summary>

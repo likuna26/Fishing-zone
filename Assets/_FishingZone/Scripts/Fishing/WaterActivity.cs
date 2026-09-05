@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using FishingZone.Core;
 using Unity.Netcode;
 using UnityEngine;
@@ -27,9 +28,18 @@ namespace FishingZone.Fishing
     /// scopes it to a voyage: it is created when the crew arrives at the fishing grounds and
     /// destroyed when they sail home, so every voyage draws fresh water and there is nothing to
     /// reset, clear or carry back to port.
+    ///
+    /// Belongs to one fishing ground: the one it is attached to. That is what makes the Observer's
+    /// report worth acting on rather than merely worth hearing. While there was a single stretch of
+    /// water for the whole map, every ground was as good as every other and the crew's only sensible
+    /// answer to quiet water was to wait it out. A ground that has its own water gives them a second
+    /// answer — go somewhere else — and that is the first thing the Navigator can do with something
+    /// the Observer said.
     /// </summary>
     public class WaterActivity : NetworkBehaviour
     {
+        private static readonly List<WaterActivity> Registered = new List<WaterActivity>();
+
         /// <summary>
         /// How long a quiet spell lasts. Longer than a feeding one on purpose: the good water should
         /// be worth calling out, which it only is if it is the exception.
@@ -78,6 +88,15 @@ namespace FishingZone.Fishing
         public float BiteDelayMultiplier => _isFeeding.Value ? _feedingBiteMultiplier : _quietBiteMultiplier;
 
         /// <summary>
+        /// The water this describes. Taken from the same object rather than dragged in, so a ground
+        /// and its water cannot be separated by an Inspector reference nobody re-checked: attaching
+        /// this to a ground is the whole of the association.
+        /// </summary>
+        public FishingGround Ground => _ground;
+
+        private FishingGround _ground;
+
+        /// <summary>
         /// Raised on every peer when the water turns. Worth listening to rather than reading
         /// <see cref="IsFeeding"/> once, because it changes while somebody is standing still looking
         /// at it, which is the entire point of the lookout.
@@ -92,6 +111,77 @@ namespace FishingZone.Fishing
         /// the water is doing now.
         /// </summary>
         private float _spellCountdown;
+
+        // The list is static, so it outlives a play session when domain reload is disabled. Same
+        // arrangement PlayerSpawnPoint and FishingGround already use, for the same reason: what asks
+        // about these has to be able to ask before it has any way of having been handed one.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetOnPlay()
+        {
+            Registered.Clear();
+        }
+
+        /// <summary>
+        /// Finds its own ground before anything can ask about it, and says so if there is not one.
+        ///
+        /// Water attached to nothing is unreachable rather than broken — no position is ever inside
+        /// it — so this would otherwise be an object quietly running a clock nobody could read. The
+        /// likeliest way it happens is a stretch of water left over from when there was only one.
+        /// </summary>
+        private void Awake()
+        {
+            _ground = GetComponent<FishingGround>();
+
+            if (_ground == null)
+            {
+                GameLog.Error(LogCategory.Fish,
+                    $"'{name}' has a Water Activity but no Fishing Ground on the same object, so no " +
+                    "boat can ever be over it. Put this component on a Fishing Ground, or remove it.");
+            }
+        }
+
+        private void OnEnable()
+        {
+            if (!Registered.Contains(this))
+            {
+                Registered.Add(this);
+            }
+        }
+
+        private void OnDisable()
+        {
+            Registered.Remove(this);
+        }
+
+        /// <summary>
+        /// The water beneath a point, or null for open sea.
+        ///
+        /// Answers for wherever the asker is standing, which for everything that asks is the boat:
+        /// the lookout and the fishing stations are all bolted to a deck that moves. Null is an
+        /// ordinary answer and not a failure — most of an expedition map is water worth nothing.
+        ///
+        /// Gives the same answer on every machine, because both halves of the question are already
+        /// on all of them: grounds come with the scene and the boat's transform is replicated. At
+        /// the exact edge two peers can disagree by a frame of interpolation, which decides only
+        /// what somebody reads; whether a line may go out is settled on the server.
+        ///
+        /// A walk of a list that holds one entry per ground, asked when somebody casts and when the
+        /// lookout checks its words. Caching it would mean giving the answer up every time the boat
+        /// moved, which is most frames.
+        /// </summary>
+        public static WaterActivity Under(Vector3 worldPosition)
+        {
+            for (int i = 0; i < Registered.Count; i++)
+            {
+                WaterActivity water = Registered[i];
+                if (water != null && water._ground != null && water._ground.Contains(worldPosition))
+                {
+                    return water;
+                }
+            }
+
+            return null;
+        }
 
         public override void OnNetworkSpawn()
         {
@@ -108,8 +198,10 @@ namespace FishingZone.Fishing
                 _isFeeding.Value = feeding;
                 ArmSpellCountdown(feeding);
 
+                // Named, because a map with several grounds turns one line about "the water" into
+                // several that cannot be told apart.
                 GameLog.Info(LogCategory.Fish,
-                    $"The crew arrived on water that is {DescribeState(feeding)}, for {_spellCountdown:F1}s.");
+                    $"'{name}' opened {DescribeState(feeding)}, for {_spellCountdown:F1}s.");
             }
         }
 
@@ -144,7 +236,7 @@ namespace FishingZone.Fishing
             ArmSpellCountdown(feeding);
 
             GameLog.Info(LogCategory.Fish,
-                $"The water turned: it is now {DescribeState(feeding)}, for {_spellCountdown:F1}s.");
+                $"'{name}' turned {DescribeState(feeding)}, for {_spellCountdown:F1}s.");
         }
 
         /// <summary>
