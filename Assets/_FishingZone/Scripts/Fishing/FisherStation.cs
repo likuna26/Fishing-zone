@@ -47,6 +47,16 @@ namespace FishingZone.Fishing
         [SerializeField]
         private string _occupiedText = "Cast to fish, or leave the station";
 
+        /// <summary>
+        /// Said in place of the above when the boat is over open water rather than a fishing ground.
+        ///
+        /// A Fisher pressing cast into nothing needs to be told why, or the station reads as broken.
+        /// It says what is wrong with the water rather than what to do about it, because what to do
+        /// is somebody else's job and asking them is the point.
+        /// </summary>
+        [SerializeField]
+        private string _offGroundsText = "Nothing is feeding under us here";
+
         [SerializeField]
         private string _stopFishText = "Waiting for a bite — release to stop, or leave the station";
 
@@ -322,6 +332,16 @@ namespace FishingZone.Fishing
         private bool _hasWarnedMissingReelAction;
 
         /// <summary>
+        /// Whether this station was over a fishing ground the last time the local occupant's prompt
+        /// was worked out. Kept so the boat crossing a boundary is noticed once rather than tested
+        /// against the words already on screen every frame.
+        /// </summary>
+        private bool _wasOverFishingGround;
+
+        /// <summary>So a scene nobody has marked out says so once, rather than once per cast.</summary>
+        private bool _hasWarnedMissingFishingGrounds;
+
+        /// <summary>
         /// The water this station is fishing, found once and kept.
         ///
         /// Safe to cache because the two share exactly one lifetime: both are placed in the
@@ -434,7 +454,11 @@ namespace FishingZone.Fishing
                     case FishingPhase.Waiting:
                         return _stopFishText;
                     default:
-                        return _occupiedText;
+                        // Idle, and the only phase where where the boat is matters, because it is
+                        // the only one a cast can begin from. Answered on this machine out of scene
+                        // data every peer holds, so no message is needed to say it. What the server
+                        // does with an actual cast is settled separately and authoritatively below.
+                        return IsOverFishingGround() ? _occupiedText : _offGroundsText;
                 }
             }
 
@@ -506,6 +530,7 @@ namespace FishingZone.Fishing
             if (IsLocalOccupant)
             {
                 PollFishingInput();
+                PollFishingGround();
             }
         }
 
@@ -669,6 +694,38 @@ namespace FishingZone.Fishing
         }
 
         /// <summary>
+        /// Watches the boat cross into water worth fishing, and out of it again.
+        ///
+        /// Needed because prompt text is read once, when a player first looks at something. Every
+        /// other thing this station says changes because a replicated value arrived, and arriving is
+        /// what asks for the re-read. This one changes because the boat moved, which nothing
+        /// announces, so a Fisher standing at their post would go on being told there was nothing
+        /// below them for as long as they kept looking.
+        ///
+        /// An edge and not a poll of the prompt: the answer is compared with the last one and only a
+        /// change says anything, which is the same shape the reel's hold already uses. Only on the
+        /// machine of the player actually standing here, and only while idle, because that is the
+        /// one phase whose words depend on it — a line already in the water is not re-read.
+        /// </summary>
+        private void PollFishingGround()
+        {
+            if (Phase != FishingPhase.Idle)
+            {
+                return;
+            }
+
+            bool isOver = IsOverFishingGround();
+            if (isOver == _wasOverFishingGround)
+            {
+                return;
+            }
+
+            _wasOverFishingGround = isOver;
+
+            RefreshLocalPrompt();
+        }
+
+        /// <summary>
         /// Said once, and loudly, because the alternative is a station that simply will not come in.
         /// An unassigned action is swallowed by its own null check, which has twice now looked
         /// exactly like a rule that stopped working.
@@ -810,6 +867,20 @@ namespace FishingZone.Fishing
             {
                 GameLog.Info(LogCategory.Fish,
                     $"Refused client {senderId} fishing at '{name}': already {Phase}.");
+                return;
+            }
+
+            // Asked last, and deliberately so. Every refusal above is about the asker and will not
+            // change by waiting; this one is about the boat, and the crew can answer it by sailing
+            // somewhere. The softest reason goes at the bottom, which is the same order the prompt
+            // reads in and the order this file has refused in since the wheel.
+            //
+            // The server's own copy of the scene and its own copy of the boat's position, so a
+            // client that believes otherwise gets a refusal rather than a cast.
+            if (!IsOverFishingGround())
+            {
+                GameLog.Info(LogCategory.Fish,
+                    $"Refused client {senderId} fishing at '{name}': the boat is not over a fishing ground.");
                 return;
             }
 
@@ -1037,6 +1108,51 @@ namespace FishingZone.Fishing
             WaterActivity water = FindWaterActivity();
 
             return water == null ? delay : delay * water.BiteDelayMultiplier;
+        }
+
+        /// <summary>
+        /// Whether there are fish under this station.
+        ///
+        /// Asked of the station's own position, which is the boat's: a place to fish is bolted to a
+        /// deck that moves. A station built on a dock one day would want a ground beside it, and
+        /// would get one with no change here.
+        ///
+        /// Run on every peer, and it must give them all the same answer. It does, because both
+        /// halves of the question are already on every machine: the grounds come with the scene and
+        /// the boat's position is replicated. At the exact edge two peers can disagree by a frame of
+        /// interpolation, and only the server's answer is allowed to start a cast.
+        ///
+        /// A scene that marks out no water at all fishes as it did before any of this existed. That
+        /// is the right way to fail: one object nobody remembered to place would otherwise turn a
+        /// whole level into one that silently cannot be played.
+        /// </summary>
+        private bool IsOverFishingGround()
+        {
+            if (!FishingGround.AnyExist)
+            {
+                WarnMissingFishingGrounds();
+                return true;
+            }
+
+            return FishingGround.Find(transform.position) != null;
+        }
+
+        /// <summary>
+        /// Said once per station on whichever machine noticed, because an unmarked scene is a thing
+        /// to fix in the editor and not a thing to hear about on every cast.
+        /// </summary>
+        private void WarnMissingFishingGrounds()
+        {
+            if (_hasWarnedMissingFishingGrounds)
+            {
+                return;
+            }
+
+            _hasWarnedMissingFishingGrounds = true;
+
+            GameLog.Error(LogCategory.Fish,
+                $"'{name}' found no Fishing Grounds in this scene, so the crew may fish anywhere. " +
+                "Add a Fishing Ground to the expedition scene to give the Navigator somewhere to take them.");
         }
 
         /// <summary>
