@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using FishingZone.Core;
 using FishingZone.Player;
 using FishingZone.Roles;
@@ -62,6 +63,39 @@ namespace FishingZone.Fishing
         /// </summary>
         [SerializeField]
         private string _wrongRoleText = "Only the Lookout can read the water";
+
+        /// <summary>
+        /// Takes the list of what lives below, already joined into a phrase.
+        ///
+        /// Habitat was configured two commits ago and no player has been able to see it since: a
+        /// crew could only learn that the north held salmon by fishing there and remembering, which
+        /// is knowledge the game had and the players had to keep for it. This is the Observer's
+        /// second job, and the reason the ground they are over is worth naming.
+        /// </summary>
+        [SerializeField]
+        private string _habitatText = "{0} run here";
+
+        /// <summary>
+        /// Said over a ground that advertises nothing.
+        ///
+        /// That is a real answer rather than a failure: a ground with no list of its own is fished
+        /// from the station's, and this post has no way to know which of two stations would be
+        /// consulted or what either holds. Saying so beats guessing, and it beats reporting a list
+        /// that might not be the one the fish come from.
+        /// </summary>
+        [SerializeField]
+        private string _unknownHabitatText = "Hard to say what runs here";
+
+        /// <summary>
+        /// What goes between the two halves of the report.
+        ///
+        /// Kept as its own field rather than baked into the sentences above, so that adding habitat
+        /// changes nothing already written: the wording of the water is untouched and needs no
+        /// placeholder added to it, which means a scene that has already been through an Inspector
+        /// reads correctly the moment this lands.
+        /// </summary>
+        [SerializeField]
+        private string _reportSeparator = ". ";
 
         /// <summary>What this post last said, so the boat moving is noticed once rather than tested against.</summary>
         private FishingGround _lastGround;
@@ -170,9 +204,92 @@ namespace FishingZone.Fishing
 
             string text = water.IsFeeding ? _feedingText : _quietText;
 
-            return string.IsNullOrEmpty(text)
-                ? _unknownText
-                : text.Replace("{0}", ground.DisplayName);
+            if (string.IsNullOrEmpty(text))
+            {
+                return _unknownText;
+            }
+
+            return text.Replace("{0}", ground.DisplayName) + _reportSeparator + DescribeHabitat(ground);
+        }
+
+        /// <summary>
+        /// What lives here, said as a phrase.
+        ///
+        /// Read straight off the ground rather than kept anywhere: habitat is configured in one
+        /// place and this is a window onto it, exactly as the water is. A second copy would be a
+        /// second thing to keep in step and a second thing to be wrong.
+        ///
+        /// Never the station's list, even though that is what a ground advertising nothing is
+        /// actually fished from. This post cannot know which of two stations a Fisher is standing
+        /// at, and reporting a list the fish might not come from would be worse than admitting it
+        /// does not know.
+        /// </summary>
+        private string DescribeHabitat(FishingGround ground)
+        {
+            string species = JoinSpecies(ground.FishPool);
+
+            if (species == null || string.IsNullOrEmpty(_habitatText))
+            {
+                return _unknownHabitatText;
+            }
+
+            return _habitatText.Replace("{0}", species);
+        }
+
+        /// <summary>
+        /// The usable fish of a list, in the order somebody typed them, as English rather than as a
+        /// dump: one is itself, two are joined by "and", and more take commas until the last.
+        ///
+        /// Configured order rather than sorted, so what a player hears matches what an Inspector
+        /// shows and a wrong entry is findable.
+        ///
+        /// Entries nobody filled in are skipped on the same test the server chooses by, so a list
+        /// with a hole in it reads as the fish that are in it rather than as a gap, an empty name or
+        /// a stray comma. Null when nothing in the list can be caught — which is a different answer
+        /// from a list of nothing, and the caller says so differently.
+        /// </summary>
+        private static string JoinSpecies(IReadOnlyList<FishDefinition> pool)
+        {
+            if (pool == null)
+            {
+                return null;
+            }
+
+            int usable = 0;
+            for (int i = 0; i < pool.Count; i++)
+            {
+                if (pool[i] != null && pool[i].IsValid)
+                {
+                    usable++;
+                }
+            }
+
+            if (usable == 0)
+            {
+                return null;
+            }
+
+            string joined = string.Empty;
+            int written = 0;
+
+            for (int i = 0; i < pool.Count; i++)
+            {
+                if (pool[i] == null || !pool[i].IsValid)
+                {
+                    continue;
+                }
+
+                // Separator chosen from what has already been written rather than from where this
+                // entry sits in the list, so the holes skipped above cannot put a comma before the
+                // first name or an "and" in the middle.
+                joined = written == 0 ? pool[i].DisplayName
+                    : written == usable - 1 ? joined + " and " + pool[i].DisplayName
+                    : joined + ", " + pool[i].DisplayName;
+
+                written++;
+            }
+
+            return joined;
         }
 
         /// <summary>
