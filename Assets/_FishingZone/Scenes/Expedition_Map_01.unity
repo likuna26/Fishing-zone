@@ -451,7 +451,7 @@ Transform:
   m_GameObject: {fileID: 302368434}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 8.36, y: 0.82, z: -7.41}
+  m_LocalPosition: {x: 2.4, y: 1.59, z: -1.08}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -747,7 +747,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: FishingZone::FishingZone.Fishing.FishingGround
   _displayName: Northern Shallows
-  _radius: 30
+  _radius: 20
+  _fishPool:
+  - {fileID: 11400000, guid: fdffa0a43e7a2ef44a7fd46e3557f69a, type: 2}
 --- !u!4 &470178025
 Transform:
   m_ObjectHideFlags: 0
@@ -757,7 +759,7 @@ Transform:
   m_GameObject: {fileID: 470178023}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -7.93, y: -0.714, z: 18.3}
+  m_LocalPosition: {x: -32.1, y: -0.3, z: 10.9}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -1484,7 +1486,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: FishingZone::FishingZone.Fishing.FishingGround
   _displayName: Reef
-  _radius: 30
+  _radius: 20
+  _fishPool:
+  - {fileID: 11400000, guid: e56412622980aea48a546291654b4201, type: 2}
 --- !u!4 &1423556787
 Transform:
   m_ObjectHideFlags: 0
@@ -1494,7 +1498,7 @@ Transform:
   m_GameObject: {fileID: 1423556783}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 6.29, y: -0.714, z: 10.07}
+  m_LocalPosition: {x: 30.7, y: -0.714, z: -10.4}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -2004,7 +2008,7 @@ Transform:
   m_GameObject: {fileID: 2066547930}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -13.51, y: 0.82, z: -11}
+  m_LocalPosition: {x: 5.7, y: 0.82, z: -2.6}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
