@@ -51,9 +51,38 @@ namespace FishingZone.Fishing
         [SerializeField]
         private float _radius = 30f;
 
+        /// <summary>
+        /// What lives here. Habitat and nothing else: a cod ground and a mackerel ground are two
+        /// places, not two prizes.
+        ///
+        /// There is no weighting, no tier, no chance and no worth anywhere in this. Whatever is
+        /// listed is caught evenly, exactly as a station's own list already is — the only thing that
+        /// changes by sailing somewhere else is which fish are in the water, never how likely or how
+        /// good they are.
+        ///
+        /// Left empty on purpose is a supported arrangement rather than a mistake: a ground with
+        /// nothing listed is fished from the station's own list, which is how every ground behaved
+        /// before there was such a thing as habitat.
+        /// </summary>
+        [SerializeField]
+        private FishDefinition[] _fishPool;
+
         public string DisplayName => _displayName;
 
         public float Radius => _radius;
+
+        /// <summary>
+        /// What may be caught here, for reading only.
+        ///
+        /// Read-only rather than the array itself, so nothing can write into a scene object's
+        /// configuration through it. An array already satisfies this, so handing one out costs no
+        /// conversion and allocates nothing.
+        ///
+        /// This describes the place. Choosing from it belongs to whatever is doing the fishing, and
+        /// lives where that choosing already lived rather than being moved here and then needed in
+        /// both places.
+        /// </summary>
+        public IReadOnlyList<FishDefinition> FishPool => _fishPool;
 
         // The list is static, so it outlives a play session when domain reload is disabled.
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -93,6 +122,46 @@ namespace FishingZone.Fishing
                 if (ground != null && ground.Contains(worldPosition))
                 {
                     return ground;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// The fish with this id, wherever in these waters it lives, or null if no ground holds one.
+        ///
+        /// Needed because a catch travels as a number and every peer has to turn it back into a
+        /// name. The server chose it out of one ground's list, but which ground that was is
+        /// server-side and deliberately never sent, so a client cannot look in the same place. It
+        /// looks everywhere instead, which comes to the same answer: ids identify a fish, so no two
+        /// grounds can disagree about what one means.
+        ///
+        /// Every peer loads the same scene and therefore the same grounds and the same lists, so
+        /// this resolves identically on all of them. Asked only when a catch is being described.
+        /// </summary>
+        public static FishDefinition FindFishById(int id)
+        {
+            if (id == FishDefinition.NoFish)
+            {
+                return null;
+            }
+
+            for (int i = 0; i < Registered.Count; i++)
+            {
+                FishingGround ground = Registered[i];
+                if (ground == null || ground._fishPool == null)
+                {
+                    continue;
+                }
+
+                for (int f = 0; f < ground._fishPool.Length; f++)
+                {
+                    FishDefinition fish = ground._fishPool[f];
+                    if (fish != null && fish.Id == id)
+                    {
+                        return fish;
+                    }
                 }
             }
 

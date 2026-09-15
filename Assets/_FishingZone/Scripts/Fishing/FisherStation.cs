@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using FishingZone.Core;
 using FishingZone.Core.Input;
 using FishingZone.Player;
@@ -343,6 +344,22 @@ namespace FishingZone.Fishing
 
         /// <summary>So a ground with no water of its own says so once, rather than once per cast.</summary>
         private bool _hasWarnedMissingWaterActivity;
+
+        /// <summary>
+        /// The water this cast was put into, remembered from the moment the server accepted it.
+        ///
+        /// A cast belongs to where it began. The crew may sail off while a line is out — they often
+        /// will, since nothing stops them — and what comes up should still be what lives where the
+        /// hook went in, not what lives wherever the hull happens to be when the fish finally comes
+        /// aboard. Resolving it again at the catch would make habitat a matter of timing.
+        ///
+        /// Server-side and not replicated. No client is told which ground a cast belongs to, and
+        /// none needs to be: what travels is the fish that was chosen, exactly as before.
+        ///
+        /// Null is ordinary. A scene that marks out no grounds has none to capture, and the station
+        /// fishes from its own list as it always did.
+        /// </summary>
+        private FishingGround _castGround;
 
         private bool IsLocalOccupant =>
             NetworkManager.Singleton != null && _occupantClientId.Value == NetworkManager.Singleton.LocalClientId;
@@ -870,6 +887,15 @@ namespace FishingZone.Fishing
 
             SetPhaseOnServer(FishingPhase.Waiting);
 
+            // Captured after the phase is set, because setting a phase to Idle is what clears this
+            // and an accepted cast must not be cleared by its own acceptance. The ground is the one
+            // the boat is over now, and it stays this cast's ground until the station goes idle —
+            // through a missed bite, a fight, and a crew that sails away mid-line.
+            //
+            // Null when the scene marks out no grounds at all, which the refusal above deliberately
+            // lets through. That reads as no habitat and falls back to this station's own list.
+            _castGround = FishingGround.Find(transform.position);
+
             GameLog.Info(LogCategory.Fish, $"Client {senderId} started fishing at '{name}'.");
         }
 
@@ -1065,6 +1091,16 @@ namespace FishingZone.Fishing
             _caughtFishId.Value = FishDefinition.NoFish;
             _caughtWeightTenths.Value = NoWeight;
             _caughtSessionCount.Value = 0;
+
+            // Idle alone, and emphatically not every change. A cast survives its own phases, and a
+            // bite that got away puts the station back to Waiting without the cast having ended —
+            // clearing on every transition would quietly hand that Fisher a different habitat for
+            // missing a bite. Idle is the only phase that means no line is out, and every way a cast
+            // can end goes through it: released, walked away from, disconnected, or shown and over.
+            if (phase == FishingPhase.Idle)
+            {
+                _castGround = null;
+            }
         }
 
         /// <summary>
@@ -1172,58 +1208,102 @@ namespace FishingZone.Fishing
         }
 
         /// <summary>
-        /// Picks what came up, from what this station was told it could hold.
+        /// Picks what came up, from whatever the water this cast went into holds.
         ///
         /// Server only, and the client is never asked: there is no message that carries a fish, so
         /// there is nothing to claim and no field to claim it in. Evenly among the usable entries,
-        /// because weighting them is a question about rarity and rarity is a system nobody has yet.
+        /// because weighting them is a question about rarity and rarity is a system nobody has yet —
+        /// and habitat is not that question. A ground holding one fish and a ground holding three
+        /// are two places, not two odds.
         ///
-        /// A station with nothing usable configured returns nothing and says so. The catch still
-        /// happens and the loop still runs — a Fisher is not stranded by a mistake in an Inspector —
-        /// but no fish is invented to cover it up.
+        /// Nothing usable anywhere returns nothing and says so. The catch still happens and the loop
+        /// still runs — a Fisher is not stranded by a mistake in an Inspector — but no fish is
+        /// invented to cover it up.
         /// </summary>
         private FishDefinition ChooseCatchOnServer()
         {
-            int usable = 0;
+            IReadOnlyList<FishDefinition> pool = ResolveCastFishPool();
 
-            if (_fishPool != null)
-            {
-                for (int i = 0; i < _fishPool.Length; i++)
-                {
-                    if (_fishPool[i] != null && _fishPool[i].IsValid)
-                    {
-                        usable++;
-                    }
-                }
-            }
+            int usable = CountUsableFish(pool);
 
             if (usable == 0)
             {
                 GameLog.Error(LogCategory.Fish,
                     $"'{name}' landed a catch but has no usable fish configured. Add Fish Definitions " +
-                    "to its Fish Pool, each with a non-zero Id and a Display Name.");
+                    "to its Fish Pool, or to the Fishing Ground it is fishing, each with a non-zero " +
+                    "Id and a Display Name.");
                 return null;
             }
 
             // Walked rather than collected, so choosing a fish allocates nothing.
             int pick = Random.Range(0, usable);
 
-            for (int i = 0; i < _fishPool.Length; i++)
+            for (int i = 0; i < pool.Count; i++)
             {
-                if (_fishPool[i] == null || !_fishPool[i].IsValid)
+                if (pool[i] == null || !pool[i].IsValid)
                 {
                     continue;
                 }
 
                 if (pick == 0)
                 {
-                    return _fishPool[i];
+                    return pool[i];
                 }
 
                 pick--;
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Which list this cast draws from: the habitat it was put into, or this station's own.
+        ///
+        /// The ground is the one captured when the cast was accepted, never one looked up now. Where
+        /// the boat has since sailed does not change what the hook went into.
+        ///
+        /// Falling back is a supported arrangement and not a fault, which is why nothing is logged
+        /// for it. A ground given no fish of its own is a ground that has not been told it is
+        /// special, and every ground was like that until habitat existed; the station's own list is
+        /// what it fished from then and what it fishes from now. That is also what keeps a scene
+        /// nobody has migrated playing exactly as it did.
+        ///
+        /// Compared with != null rather than ReferenceEquals, so a ground destroyed underneath this
+        /// reference reads as absent and falls back rather than throwing.
+        /// </summary>
+        private IReadOnlyList<FishDefinition> ResolveCastFishPool()
+        {
+            if (_castGround != null && CountUsableFish(_castGround.FishPool) > 0)
+            {
+                return _castGround.FishPool;
+            }
+
+            return _fishPool;
+        }
+
+        /// <summary>
+        /// How many entries in a list could actually be caught. Null lists, empty slots and
+        /// definitions nobody filled in all count for nothing, so a half-configured ground falls
+        /// back on the same test a half-configured station already faced.
+        /// </summary>
+        private static int CountUsableFish(IReadOnlyList<FishDefinition> pool)
+        {
+            if (pool == null)
+            {
+                return 0;
+            }
+
+            int usable = 0;
+
+            for (int i = 0; i < pool.Count; i++)
+            {
+                if (pool[i] != null && pool[i].IsValid)
+                {
+                    usable++;
+                }
+            }
+
+            return usable;
         }
 
         /// <summary>
@@ -1329,26 +1409,35 @@ namespace FishingZone.Fishing
         }
 
         /// <summary>
-        /// Turns the number back into the fish, using the same list the server chose from. Every
-        /// peer holds it, because it is configured on this station and this station exists on all
-        /// of them.
+        /// Turns the number back into the fish.
+        ///
+        /// This station's own list first, because that is where a catch came from before habitat
+        /// existed and still does wherever a ground was given no fish of its own. Then the grounds,
+        /// because a fish drawn from one need not appear on any station — and a catch that could not
+        /// be named would lose its weight along with its name, which is most of what the moment is.
+        ///
+        /// Runs on every peer and must give them all the same answer. It does: stations and grounds
+        /// both come with the scene, and an id means one fish wherever it is looked up.
         /// </summary>
         private FishDefinition FindFish(int id)
         {
-            if (id == FishDefinition.NoFish || _fishPool == null)
+            if (id == FishDefinition.NoFish)
             {
                 return null;
             }
 
-            for (int i = 0; i < _fishPool.Length; i++)
+            if (_fishPool != null)
             {
-                if (_fishPool[i] != null && _fishPool[i].Id == id)
+                for (int i = 0; i < _fishPool.Length; i++)
                 {
-                    return _fishPool[i];
+                    if (_fishPool[i] != null && _fishPool[i].Id == id)
+                    {
+                        return _fishPool[i];
+                    }
                 }
             }
 
-            return null;
+            return FishingGround.FindFishById(id);
         }
 
         /// <summary>Drawn afresh, so no two fights run to the same rhythm.</summary>
