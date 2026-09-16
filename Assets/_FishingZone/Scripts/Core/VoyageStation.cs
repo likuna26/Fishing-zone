@@ -1,3 +1,5 @@
+using FishingZone.Fishing;
+using FishingZone.Player;
 using FishingZone.Roles;
 using Unity.Netcode;
 using UnityEngine;
@@ -40,6 +42,24 @@ namespace FishingZone.Core
         [SerializeField]
         private string _wrongRoleText = string.Empty;
 
+        /// <summary>
+        /// Said to the Navigator at the homeward station once the fishing day is over.
+        ///
+        /// Left empty on purpose, like the wording above it: the derived line suits the only
+        /// station this can ever apply to, so a port and an expedition still need one script
+        /// between them and neither has to be retyped.
+        ///
+        /// It states the day rather than commanding the crew. Nothing here forces anybody home and
+        /// nothing here is refused — the wheel is still theirs and leaving is still their call. This
+        /// only stops the way home reading exactly as it did an hour ago, when there was still
+        /// fishing to do.
+        /// </summary>
+        [SerializeField]
+        private string _dayOverText = string.Empty;
+
+        /// <summary>Whether the day was over when this last worked out what to say.</summary>
+        private bool _wasDayOver;
+
         private bool IsDestinationValid =>
             _destination == GameState.Port || _destination == GameState.Expedition;
 
@@ -52,6 +72,36 @@ namespace FishingZone.Core
                 ? "Only the Navigator may set sail"
                 : "Only the Navigator may return to port")
             : _wrongRoleText;
+
+        private string DayOverText => string.IsNullOrEmpty(_dayOverText)
+            ? "The light has gone — take her home"
+            : _dayOverText;
+
+        /// <summary>
+        /// Whether this is the way home and the fishing is finished.
+        ///
+        /// Both halves matter. The station that sets sail is never the one to mention a day being
+        /// over — it lives in port, where there is no day running at all, and saying so at the jetty
+        /// would be nonsense. And a scene with no window has a day that never ends, exactly as every
+        /// voyage behaved before there was one.
+        ///
+        /// Reads the replicated phase and nothing else. No countdown is sent and none is read, so
+        /// every peer works this out identically from what the server has already said.
+        /// </summary>
+        private bool IsDayOverHomeward
+        {
+            get
+            {
+                if (_destination != GameState.Port)
+                {
+                    return false;
+                }
+
+                ExpeditionWindow window = ExpeditionWindow.Current;
+
+                return window != null && window.Phase == ExpeditionPhase.Closed;
+            }
+        }
 
         /// <summary>
         /// Says once, and loudly, that this will never take anybody anywhere. A station given a
@@ -88,9 +138,70 @@ namespace FishingZone.Core
         /// </summary>
         public string GetInteractionText(GameObject interactor)
         {
-            return PlayerRoleController.GetRoleOf(interactor) == PlayerRole.Navigator
-                ? DepartText
-                : WrongRoleText;
+            if (PlayerRoleController.GetRoleOf(interactor) != PlayerRole.Navigator)
+            {
+                // Unchanged by the day ending. A Fisher reading the way home is being told whose
+                // job it is, which is as true at dusk as at noon, and telling them the fishing is
+                // over would offer them something they still may not do.
+                return WrongRoleText;
+            }
+
+            return IsDayOverHomeward ? DayOverText : DepartText;
+        }
+
+        /// <summary>
+        /// Watches the fishing day end while somebody is already looking at the way home.
+        ///
+        /// Needed because prompt text is read once, when a player first looks at something. Every
+        /// other thing that changes a prompt in this project announces itself by arriving — a
+        /// replicated value landing, an occupant changing — and a Navigator standing at this station
+        /// as the light goes would otherwise read the ordinary offer until they looked away and
+        /// back, at exactly the moment the wording is worth anything.
+        ///
+        /// An edge and not a poll of the prompt: the answer is compared with the last one and only a
+        /// change says anything. The same shape the lookout and the fishing stations already use to
+        /// notice the same kind of silent change. The station in port never changes its answer, so
+        /// it never asks for a re-read.
+        /// </summary>
+        private void Update()
+        {
+            if (!IsSpawned)
+            {
+                return;
+            }
+
+            bool dayOver = IsDayOverHomeward;
+            if (dayOver == _wasDayOver)
+            {
+                return;
+            }
+
+            _wasDayOver = dayOver;
+
+            RefreshLocalPrompt();
+        }
+
+        /// <summary>
+        /// Asks the local player to read its prompt again.
+        ///
+        /// Refreshing whatever the player happens to be looking at, rather than insisting it is this
+        /// station, keeps this from having to know: re-reading another object's prompt produces the
+        /// same words it already had. It re-raises an event with the value already held, so it can
+        /// disturb nothing, and it is safe before any player exists.
+        /// </summary>
+        private static void RefreshLocalPrompt()
+        {
+            NetworkObject playerObject = NetworkManager.Singleton?.LocalClient?.PlayerObject;
+            if (playerObject == null)
+            {
+                return;
+            }
+
+            PlayerInteraction interaction = playerObject.GetComponent<PlayerInteraction>();
+            if (interaction != null)
+            {
+                interaction.RefreshFocus();
+            }
         }
 
         /// <summary>
