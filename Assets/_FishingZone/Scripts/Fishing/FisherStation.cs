@@ -58,6 +58,17 @@ namespace FishingZone.Fishing
         [SerializeField]
         private string _offGroundsText = "Nothing is feeding under us here";
 
+        /// <summary>
+        /// Said to the holder of a station once the day is over.
+        ///
+        /// Names the reason and the answer, because neither is guessable: a Fisher who pressed and
+        /// got nothing would read a station that had stopped working, and the answer is not
+        /// something they can do at the station at all. It is the one prompt in this file that asks
+        /// somebody else to act.
+        /// </summary>
+        [SerializeField]
+        private string _windowClosedText = "The light has gone — no more casts today. Time to head for port";
+
         [SerializeField]
         private string _stopFishText = "Waiting for a bite — release to stop, or leave the station";
 
@@ -339,6 +350,13 @@ namespace FishingZone.Fishing
         /// </summary>
         private bool _wasOverFishingGround;
 
+        /// <summary>
+        /// Whether the day was over the last time the local occupant's prompt was worked out. Kept
+        /// beside the one above and checked in the same place, so the light going out is noticed the
+        /// same way the boat crossing a boundary already is.
+        /// </summary>
+        private bool _wasWindowClosed;
+
         /// <summary>So a scene nobody has marked out says so once, rather than once per cast.</summary>
         private bool _hasWarnedMissingFishingGrounds;
 
@@ -469,11 +487,14 @@ namespace FishingZone.Fishing
                     case FishingPhase.Waiting:
                         return _stopFishText;
                     default:
-                        // Idle, and the only phase where where the boat is matters, because it is
-                        // the only one a cast can begin from. Answered on this machine out of scene
-                        // data every peer holds, so no message is needed to say it. What the server
-                        // does with an actual cast is settled separately and authoritatively below.
-                        return IsOverFishingGround() ? _occupiedText : _offGroundsText;
+                        // Idle, and the only phase where the day and the boat's place matter,
+                        // because it is the only one a cast can begin from. Both answered on this
+                        // machine out of state every peer holds, so no message is needed to say
+                        // either. What the server does with an actual cast is settled separately and
+                        // authoritatively below, in the same order these are asked.
+                        return IsWindowClosed() ? _windowClosedText
+                            : IsOverFishingGround() ? _occupiedText
+                            : _offGroundsText;
                 }
             }
 
@@ -730,12 +751,15 @@ namespace FishingZone.Fishing
             }
 
             bool isOver = IsOverFishingGround();
-            if (isOver == _wasOverFishingGround)
+            bool isClosed = IsWindowClosed();
+
+            if (isOver == _wasOverFishingGround && isClosed == _wasWindowClosed)
             {
                 return;
             }
 
             _wasOverFishingGround = isOver;
+            _wasWindowClosed = isClosed;
 
             RefreshLocalPrompt();
         }
@@ -892,6 +916,24 @@ namespace FishingZone.Fishing
             //
             // The server's own copy of the scene and its own copy of the boat's position, so a
             // client that believes otherwise gets a refusal rather than a cast.
+            // Asked after everything about the asker and about this station, and before the one
+            // remaining question about the boat. The order is the file's usual one — the firmer
+            // reason first, where firmness means how little waiting would change it.
+            //
+            // A day that is over will not come back: the window runs one way and there is nothing
+            // the crew can do about it. Water under the boat is softer than that, because sailing
+            // somewhere fixes it. Refusing on the ground first would therefore send a crew off to
+            // find water they would be turned away from anyway, which is worse than useless.
+            //
+            // It stays below the registry, the role and the ownership checks, because those are
+            // about who is asking and must never be masked by a fact about the weather.
+            if (IsWindowClosed())
+            {
+                GameLog.Info(LogCategory.Fish,
+                    $"Refused client {senderId} fishing at '{name}': the light has gone.");
+                return;
+            }
+
             if (!IsOverFishingGround())
             {
                 GameLog.Info(LogCategory.Fish,
@@ -1174,6 +1216,24 @@ namespace FishingZone.Fishing
                 $"'{name}' cast into water with no Water Activity on it, so bites keep their " +
                 "unmodified timing and the Lookout has nothing to report there. Add a Water Activity " +
                 "to each Fishing Ground in the expedition scene.");
+        }
+
+        /// <summary>
+        /// Whether the fishing day is over.
+        ///
+        /// Run on every peer and it must give them all the same answer. It does: the phase is
+        /// replicated, and it is the only thing consulted. No countdown is read anywhere, on any
+        /// machine, because none is sent.
+        ///
+        /// A scene with no window has a day that never ends, which is exactly how every voyage
+        /// behaved before there was one. Failing open is the right way round here as everywhere
+        /// else: an object nobody placed should not stop a crew fishing.
+        /// </summary>
+        private static bool IsWindowClosed()
+        {
+            ExpeditionWindow window = ExpeditionWindow.Current;
+
+            return window != null && window.Phase == ExpeditionPhase.Closed;
         }
 
         /// <summary>
