@@ -112,6 +112,26 @@ namespace FishingZone.Fishing
         [SerializeField]
         private string _callCoolingText = "They will not come up again yet";
 
+        /// <summary>
+        /// The three things the light can be doing, appended to whatever else this post has to say.
+        ///
+        /// A fact about the trip rather than about the water below, which is why it is said over
+        /// open sea as well: a crew hunting for a buoy with the light going is exactly the crew with
+        /// a decision to make.
+        ///
+        /// Leave any of these empty to silence that state. Emptying the first is the obvious edit —
+        /// a lookout need not keep announcing that everything is fine — but it is left saying
+        /// something by default so a crew can see the day is running at all.
+        /// </summary>
+        [SerializeField]
+        private string _lightGoodText = "The light is good";
+
+        [SerializeField]
+        private string _lightFadingText = "The light is going";
+
+        [SerializeField]
+        private string _lightGoneText = "The light has gone";
+
         /// <summary>What this post last said, so the boat moving is noticed once rather than tested against.</summary>
         private FishingGround _lastGround;
 
@@ -125,6 +145,12 @@ namespace FishingZone.Fishing
         /// somebody spends it.
         /// </summary>
         private bool _lastCallReady;
+
+        /// <summary>
+        /// Tracked with the rest, because the light goes while a player stands perfectly still
+        /// looking at this post — which is the moment the warning is worth anything at all.
+        /// </summary>
+        private ExpeditionPhase _lastLight;
 
         /// <summary>
         /// Adopted rather than waited for, so a post spawning after the player who is looking at it
@@ -161,11 +187,13 @@ namespace FishingZone.Fishing
             WaterActivity water = WaterActivity.Under(transform.position);
             bool feeding = water != null && water.IsFeeding;
             bool callReady = water != null && water.IsCallReady;
+            ExpeditionPhase light = CurrentLight();
 
             if (ReferenceEquals(ground, _lastGround)
                 && ReferenceEquals(water, _lastWater)
                 && feeding == _lastFeeding
-                && callReady == _lastCallReady)
+                && callReady == _lastCallReady
+                && light == _lastLight)
             {
                 return;
             }
@@ -174,6 +202,7 @@ namespace FishingZone.Fishing
             _lastWater = water;
             _lastFeeding = feeding;
             _lastCallReady = callReady;
+            _lastLight = light;
 
             RefreshLocalPrompt();
         }
@@ -218,25 +247,77 @@ namespace FishingZone.Fishing
             FishingGround ground = FishingGround.Find(transform.position);
             if (ground == null)
             {
-                return _openWaterText;
+                return _openWaterText + DescribeLight();
             }
 
             WaterActivity water = WaterActivity.Under(transform.position);
             if (water == null)
             {
-                return _unknownText;
+                return _unknownText + DescribeLight();
             }
 
             string text = water.IsFeeding ? _feedingText : _quietText;
 
             if (string.IsNullOrEmpty(text))
             {
-                return _unknownText;
+                return _unknownText + DescribeLight();
             }
 
             return text.Replace("{0}", ground.DisplayName)
                    + _reportSeparator + DescribeHabitat(ground)
-                   + DescribeCall(water);
+                   + DescribeCall(water)
+                   + DescribeLight();
+        }
+
+        /// <summary>
+        /// What the light is doing, said last because it is the only clause here that is not about
+        /// the water below.
+        ///
+        /// Appended to every report, including the one over open sea. A crew crossing between
+        /// grounds with the light going is precisely the crew who need telling, and a post that went
+        /// quiet about the day the moment the boat left a ground would go quiet exactly when it
+        /// mattered most.
+        ///
+        /// Silent when there is no day to report — a scene nobody has given a window to still reads
+        /// correctly, and says nothing rather than guessing.
+        /// </summary>
+        private string DescribeLight()
+        {
+            ExpeditionWindow window = ExpeditionWindow.Current;
+            if (window == null)
+            {
+                return string.Empty;
+            }
+
+            string text;
+            switch (window.Phase)
+            {
+                case ExpeditionPhase.Closed:
+                    text = _lightGoneText;
+                    break;
+                case ExpeditionPhase.Fading:
+                    text = _lightFadingText;
+                    break;
+                default:
+                    text = _lightGoodText;
+                    break;
+            }
+
+            return string.IsNullOrEmpty(text) ? string.Empty : _reportSeparator + text;
+        }
+
+        /// <summary>
+        /// The day's state for the purpose of noticing it change, with no day reading as Open.
+        ///
+        /// A steady value rather than a third case, because this is only ever compared with the last
+        /// one: a scene with no window never changes, so it never asks for a re-read, which is
+        /// exactly right for a post that has nothing to say about the day.
+        /// </summary>
+        private static ExpeditionPhase CurrentLight()
+        {
+            ExpeditionWindow window = ExpeditionWindow.Current;
+
+            return window != null ? window.Phase : ExpeditionPhase.Open;
         }
 
         /// <summary>
