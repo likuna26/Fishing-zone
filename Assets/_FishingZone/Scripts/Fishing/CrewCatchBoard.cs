@@ -36,11 +36,45 @@ namespace FishingZone.Fishing
         private string _countText = "The crew has landed {0} fish this session";
 
         /// <summary>
+        /// Said after the session sentence, so the board answers the question a crew actually comes
+        /// home with: not how the evening is going, but how that went.
+        ///
+        /// Its own sentence rather than a placeholder added to the one above, so a board already
+        /// worded in an Inspector needs no editing for this to appear. The number is substituted
+        /// rather than formatted, which is the idiom the stations settled on: a placeholder edited
+        /// into something malformed loses the number instead of throwing inside a prompt.
+        /// </summary>
+        [SerializeField]
+        private string _voyageCountText = "{0} of them this trip";
+
+        /// <summary>
+        /// Said when the crew came home empty. Its own sentence rather than the one above with a
+        /// zero in it, for the reason the empty board has one: "0 of them this trip" is how a
+        /// machine says it.
+        /// </summary>
+        [SerializeField]
+        private string _voyageEmptyText = "None this trip";
+
+        /// <summary>What goes between the two sentences.</summary>
+        [SerializeField]
+        private string _reportSeparator = ". ";
+
+        /// <summary>
         /// Written once by the server, read by everyone, and that is the whole of the traffic. It
         /// travels with the spawn, so a client has the number before it has a player able to walk up
         /// and read it.
         /// </summary>
         private readonly NetworkVariable<int> _crewCatchCount = new NetworkVariable<int>(
+            0,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server);
+
+        /// <summary>
+        /// What the trip just ended came to. Written beside the one above, at the same moment, from
+        /// the same log — two numbers about the same crew, and no reason for either to arrive
+        /// without the other.
+        /// </summary>
+        private readonly NetworkVariable<int> _voyageCatchCount = new NetworkVariable<int>(
             0,
             NetworkVariableReadPermission.Everyone,
             NetworkVariableWritePermission.Server);
@@ -72,7 +106,13 @@ namespace FishingZone.Fishing
 
             _crewCatchCount.Value = log.GetCrewCatchCount();
 
-            GameLog.Info(LogCategory.Fish, $"'{name}' is showing the crew's session total of {_crewCatchCount.Value}.");
+            // Read at the same moment and from the same log. The trip count still stands here
+            // because nothing clears it on the way home — it is cleared when the crew next reaches
+            // the grounds, which is exactly after everybody has finished reading this.
+            _voyageCatchCount.Value = log.GetVoyageCatchCount();
+
+            GameLog.Info(LogCategory.Fish,
+                $"'{name}' is showing {_voyageCatchCount.Value} from the trip and a session total of {_crewCatchCount.Value}.");
         }
 
         /// <summary>
@@ -88,12 +128,40 @@ namespace FishingZone.Fishing
         /// <summary>
         /// The whole of it. Reading is the interaction, and the prompt is where reading happens, so
         /// there is nothing left for the key press to do.
+        ///
+        /// A crew who have landed nothing at all get the one sentence that says so, because a trip
+        /// clause on an empty board would only say nothing twice.
         /// </summary>
         public string GetInteractionText(GameObject interactor)
         {
             int count = _crewCatchCount.Value;
 
-            return count <= 0 ? _emptyText : string.Format(_countText, count);
+            if (count <= 0)
+            {
+                return _emptyText;
+            }
+
+            return string.Format(_countText, count) + _reportSeparator + DescribeVoyage();
+        }
+
+        /// <summary>
+        /// What the trip came to, said as a sentence of its own. Nought is a real answer here and
+        /// not a missing one: a crew can come home empty from water that was quiet all evening, and
+        /// the board should say so rather than leave them to work it out from a total that did not
+        /// move.
+        /// </summary>
+        private string DescribeVoyage()
+        {
+            int voyage = _voyageCatchCount.Value;
+
+            if (voyage <= 0)
+            {
+                return _voyageEmptyText;
+            }
+
+            return string.IsNullOrEmpty(_voyageCountText)
+                ? _voyageEmptyText
+                : _voyageCountText.Replace("{0}", voyage.ToString());
         }
 
         /// <summary>
