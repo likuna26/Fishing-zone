@@ -418,9 +418,12 @@ namespace FishingZone.Fishing
         }
 
         /// <summary>
-        /// Being the wrong job is reported ahead of anything about the place itself, matching the
-        /// order the server refuses in: it is the firmer of the reasons and the one that will not
-        /// change by waiting.
+        /// What this place says, which depends on who is looking and on what is happening here.
+        ///
+        /// Being the wrong job decides an empty station and only an empty station. What a station
+        /// in use is doing is said to the whole crew, because it is not an offer being made to
+        /// anybody — it is the boat's business, and the Navigator who chose this ground and the
+        /// Observer who read its water have as much reason to know it as the Fisher's colleague.
         ///
         /// The role comes from the copy carried on the player object, which is the one place this
         /// class is allowed to consult it. That value is a replicated mirror a determined client
@@ -430,18 +433,29 @@ namespace FishingZone.Fishing
         /// </summary>
         public string GetInteractionText(GameObject interactor)
         {
-            if (PlayerRoleController.GetRoleOf(interactor) != PlayerRole.Fisher)
-            {
-                return _wrongRoleText;
-            }
+            // Being the wrong job settles an empty station and nothing more. A place nobody is at
+            // offers only the taking of it, so somebody who may not take it is told so and that is
+            // the whole exchange.
+            //
+            // A place somebody IS at is a different matter: what is happening there is a fact about
+            // the boat rather than an offer being made, and the crew who chose this water are the
+            // ones with most reason to want it. The Navigator picked the ground and the Observer
+            // called the water; until now the game answered both of them with a rule about whose
+            // rod it is, while the one thing that would tell them whether they were right went only
+            // to the other Fisher. So a refusal above this point would refuse the wrong thing.
+            bool isFisher = PlayerRoleController.GetRoleOf(interactor) == PlayerRole.Fisher;
 
             if (!IsOccupied)
             {
-                return _fishText;
+                return isFisher ? _fishText : _wrongRoleText;
             }
 
             FishingPhase phase = Phase;
 
+            // Reachable only by the Fisher holding this place, whatever the role mirror says: the
+            // occupant is a client id the server wrote, and the server admits nobody but a Fisher.
+            // That is what keeps the private account below — the one carrying their own tally —
+            // from ever being read by a crewmate.
             if (IsLocalOccupant)
             {
                 switch (phase)
