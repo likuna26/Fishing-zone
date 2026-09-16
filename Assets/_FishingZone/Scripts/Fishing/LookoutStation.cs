@@ -97,12 +97,34 @@ namespace FishingZone.Fishing
         [SerializeField]
         private string _reportSeparator = ". ";
 
+        /// <summary>
+        /// Offered only when pressing would actually work: quiet water, a ground below, and a call
+        /// this ground will still answer. A prompt that offered something about to be refused would
+        /// make the Observer's judgement worthless, since the judgement is the whole of the role.
+        /// </summary>
+        [SerializeField]
+        private string _callReadyText = "Interact to call them up";
+
+        /// <summary>
+        /// Said while the water will not answer again yet. No number and no bar: how long is the
+        /// server's business, and a countdown on a sign would turn a decision into an egg timer.
+        /// </summary>
+        [SerializeField]
+        private string _callCoolingText = "They will not come up again yet";
+
         /// <summary>What this post last said, so the boat moving is noticed once rather than tested against.</summary>
         private FishingGround _lastGround;
 
         private WaterActivity _lastWater;
 
         private bool _lastFeeding;
+
+        /// <summary>
+        /// Tracked alongside the rest, because the offer to call appears and disappears while a
+        /// player stands perfectly still looking at this post — when the cooldown runs out, and when
+        /// somebody spends it.
+        /// </summary>
+        private bool _lastCallReady;
 
         /// <summary>
         /// Adopted rather than waited for, so a post spawning after the player who is looking at it
@@ -138,10 +160,12 @@ namespace FishingZone.Fishing
             FishingGround ground = FishingGround.Find(transform.position);
             WaterActivity water = WaterActivity.Under(transform.position);
             bool feeding = water != null && water.IsFeeding;
+            bool callReady = water != null && water.IsCallReady;
 
             if (ReferenceEquals(ground, _lastGround)
                 && ReferenceEquals(water, _lastWater)
-                && feeding == _lastFeeding)
+                && feeding == _lastFeeding
+                && callReady == _lastCallReady)
             {
                 return;
             }
@@ -149,6 +173,7 @@ namespace FishingZone.Fishing
             _lastGround = ground;
             _lastWater = water;
             _lastFeeding = feeding;
+            _lastCallReady = callReady;
 
             RefreshLocalPrompt();
         }
@@ -209,7 +234,28 @@ namespace FishingZone.Fishing
                 return _unknownText;
             }
 
-            return text.Replace("{0}", ground.DisplayName) + _reportSeparator + DescribeHabitat(ground);
+            return text.Replace("{0}", ground.DisplayName)
+                   + _reportSeparator + DescribeHabitat(ground)
+                   + DescribeCall(water);
+        }
+
+        /// <summary>
+        /// Whether this water can be called, and nothing about how long until it can.
+        ///
+        /// Silent on feeding water, because there is nothing to offer and nothing to wait for: the
+        /// fish are already up and the report above has just said so. The offer therefore appears
+        /// exactly when pressing would work, which is what makes it an offer rather than a hint.
+        /// </summary>
+        private string DescribeCall(WaterActivity water)
+        {
+            if (water.IsFeeding)
+            {
+                return string.Empty;
+            }
+
+            string text = water.IsCallReady ? _callReadyText : _callCoolingText;
+
+            return string.IsNullOrEmpty(text) ? string.Empty : _reportSeparator + text;
         }
 
         /// <summary>
@@ -293,10 +339,86 @@ namespace FishingZone.Fishing
         }
 
         /// <summary>
-        /// Deliberately nothing. The Observer has already read it, and there is nobody to send it to.
+        /// The Observer's one act, and the reason this method stopped being empty.
+        ///
+        /// Asks whatever the prompt said. A player whose own copy of their role says they are no
+        /// Observer still gets to ask, and gets their answer from the machine entitled to give one;
+        /// refusing here would be quicker and would hide the only thing worth proving.
         /// </summary>
         public void Interact(GameObject interactor)
         {
+            if (!IsSpawned)
+            {
+                // Sending before the object is spawned throws. This can happen for an in-scene post
+                // in the moments after the scene loads and before Netcode has spawned it.
+                return;
+            }
+
+            RequestCallServerRpc();
+        }
+
+        /// <summary>
+        /// The decision, and the only one that counts.
+        ///
+        /// Carries nothing. There is no ground to name and no state to report, so there is no field
+        /// for a client to lie in: which water this is comes from where this post stands, on the
+        /// server's own copy of the scene, and whether it will answer comes from the water itself.
+        /// A client cannot call a stretch of water the boat is not over, because it has no way to
+        /// say which stretch it means.
+        ///
+        /// Who is asking comes from the transport rather than from anything the caller sent, and
+        /// what they are comes from the crew registry, which is server-only and still standing long
+        /// after the lobby was unloaded. PlayerRoleController is not consulted and must never be:
+        /// it is a copy that lives on the asking machine and it decides what a player reads, never
+        /// what they may do.
+        ///
+        /// Ownership is not the check, which is why it is not required: a crow's nest belongs to
+        /// nobody. The question is what job the asker took.
+        /// </summary>
+        [ServerRpc(RequireOwnership = false)]
+        private void RequestCallServerRpc(ServerRpcParams parameters = default)
+        {
+            ulong senderId = parameters.Receive.SenderClientId;
+
+            CrewRoleRegistry registry = ServiceRegistry.Get<CrewRoleRegistry>();
+            if (registry == null)
+            {
+                // Refused rather than allowed, as the fishing stations refuse. There is nothing lost
+                // by refusing a call and something real lost by permitting one on nobody's
+                // authority, and a post that quietly let the whole crew call would look exactly like
+                // one that was working.
+                GameLog.Error(LogCategory.Fish,
+                    $"Refused client {senderId} at '{name}': no crew registry, so nobody's job can be confirmed.");
+                return;
+            }
+
+            PlayerRole role = registry.GetRole(senderId);
+            if (role != PlayerRole.Observer)
+            {
+                GameLog.Info(LogCategory.Fish,
+                    $"Refused client {senderId} at '{name}': only the Lookout calls the fish up, and they are {role}.");
+                return;
+            }
+
+            WaterActivity water = WaterActivity.Under(transform.position);
+            if (water == null)
+            {
+                GameLog.Info(LogCategory.Fish,
+                    $"Ignored client {senderId} at '{name}': there is no water below to call.");
+                return;
+            }
+
+            if (!water.TryCallOnServer())
+            {
+                // Refused without spending anything. The water said no because it is already
+                // feeding or because it has not come back to itself yet, and either way the crew
+                // still has their call.
+                GameLog.Info(LogCategory.Fish,
+                    $"Ignored client {senderId} at '{name}': '{water.name}' would not answer.");
+                return;
+            }
+
+            GameLog.Info(LogCategory.Fish, $"Client {senderId} called the fish up at '{water.name}'.");
         }
 
         /// <summary>

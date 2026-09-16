@@ -70,6 +70,26 @@ namespace FishingZone.Fishing
         private float _quietBiteMultiplier = 1.6f;
 
         /// <summary>
+        /// How long the fish stay up when the Lookout calls them.
+        ///
+        /// Deliberately longer than a natural feeding spell, and deliberately not drawn from that
+        /// range: a called window is a known quantity the crew can work to, which is the whole
+        /// reason it is worth arranging in advance. It is also why the call does not go through
+        /// ArmSpellCountdown — a rolled spell could be shorter than this and would quietly cheat the
+        /// crew out of the thing they spent it on.
+        /// </summary>
+        [SerializeField]
+        private float _calledFeedingSeconds = 30f;
+
+        /// <summary>
+        /// How long this water refuses to answer again. Long enough that calling is an occasion
+        /// rather than a rhythm: quiet water still mostly means wait it out or sail somewhere else,
+        /// and the call is the crew's answer to one stretch of it, not to all of them.
+        /// </summary>
+        [SerializeField]
+        private float _callCooldownSeconds = 120f;
+
+        /// <summary>
         /// The whole of what travels. One bit, written by the server and read by everyone, which is
         /// all the lookout needs and all anybody is entitled to know.
         /// </summary>
@@ -80,6 +100,24 @@ namespace FishingZone.Fishing
 
         /// <summary>True when the fish are moving. Readable on any peer, once the value has arrived.</summary>
         public bool IsFeeding => _isFeeding.Value;
+
+        /// <summary>
+        /// Whether this water would answer a call right now.
+        ///
+        /// Replicated because the Lookout must not offer something that would be refused: the
+        /// Observer decides when to spend the call, and a decision made against a prompt that lies
+        /// is not a decision. It says only yes or no — how long is left is the server's business,
+        /// and a number counting down would turn a judgement into an egg timer.
+        ///
+        /// Starts true, so a crew arriving at a ground has one call in hand. It is scene state like
+        /// everything else here, so sailing home and out again brings a fresh one.
+        /// </summary>
+        private readonly NetworkVariable<bool> _isCallReady = new NetworkVariable<bool>(
+            true,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server);
+
+        public bool IsCallReady => _isCallReady.Value;
 
         /// <summary>
         /// What the current water does to a wait for a bite. Read by the server alone, at the moment
@@ -111,6 +149,13 @@ namespace FishingZone.Fishing
         /// the water is doing now.
         /// </summary>
         private float _spellCountdown;
+
+        /// <summary>
+        /// How much longer this water refuses to answer. Server-only, like every clock here, and
+        /// meaningless while the call is ready: it is wound when one is spent and read only until it
+        /// runs out.
+        /// </summary>
+        private float _callCooldown;
 
         // The list is static, so it outlives a play session when domain reload is disabled. Same
         // arrangement PlayerSpawnPoint and FishingGround already use, for the same reason: what asks
@@ -216,6 +261,10 @@ namespace FishingZone.Fishing
         /// Guarded on IsSpawned before anything reads or writes the variable, because a
         /// NetworkVariable touched before its object is spawned throws, and a component that runs a
         /// clock every frame is exactly where that would go unnoticed.
+        ///
+        /// The call's cooldown is counted here rather than on a loop of its own, and before the
+        /// early return below, because the spell and the cooldown run on different lengths and the
+        /// cooldown must keep running through a spell that has not finished.
         /// </summary>
         private void Update()
         {
@@ -224,12 +273,17 @@ namespace FishingZone.Fishing
                 return;
             }
 
+            TickCallCooldown();
+
             _spellCountdown -= Time.deltaTime;
             if (_spellCountdown > 0f)
             {
                 return;
             }
 
+            // Whatever ended, natural or called, the water turns to the other thing and takes a
+            // fresh spell of it. A called window therefore ends the way any feeding does: it goes
+            // quiet and the ordinary cycle carries on from there, with nothing to unwind.
             bool feeding = !_isFeeding.Value;
 
             _isFeeding.Value = feeding;
@@ -237,6 +291,74 @@ namespace FishingZone.Fishing
 
             GameLog.Info(LogCategory.Fish,
                 $"'{name}' turned {DescribeState(feeding)}, for {_spellCountdown:F1}s.");
+        }
+
+        /// <summary>
+        /// Counts the water back towards answering again. Does nothing at all while it already
+        /// would, so a ready call costs a comparison rather than a countdown.
+        /// </summary>
+        private void TickCallCooldown()
+        {
+            if (_isCallReady.Value)
+            {
+                return;
+            }
+
+            _callCooldown -= Time.deltaTime;
+            if (_callCooldown > 0f)
+            {
+                return;
+            }
+
+            _isCallReady.Value = true;
+
+            GameLog.Info(LogCategory.Fish, $"'{name}' will answer a call again.");
+        }
+
+        /// <summary>
+        /// Brings the fish up, if this water will answer.
+        ///
+        /// Server only, and the decision itself: the Lookout asks, this says yes or no, and nothing
+        /// a client sent is consulted on the way. Returns whether it happened so the caller can say
+        /// so in the log rather than guessing.
+        ///
+        /// Refused on water that is already feeding, and refused **without spending anything** — the
+        /// cooldown is wound only by a call that worked. That is what stops the call being banked
+        /// against good water or wasted by a mistimed press, and it is why the Observer has to read
+        /// the water before spending it rather than after.
+        ///
+        /// The window is set directly rather than through ArmSpellCountdown. A rolled feeding spell
+        /// can be shorter than the called window, and arming one here would quietly hand the crew
+        /// less than they arranged for. Whatever was left of the previous spell is replaced outright,
+        /// so a call landing in the last second of a quiet stretch still buys the whole window.
+        /// </summary>
+        public bool TryCallOnServer()
+        {
+            if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer)
+            {
+                return false;
+            }
+
+            if (!_isCallReady.Value)
+            {
+                return false;
+            }
+
+            if (_isFeeding.Value)
+            {
+                return false;
+            }
+
+            _isFeeding.Value = true;
+            _spellCountdown = _calledFeedingSeconds;
+
+            _isCallReady.Value = false;
+            _callCooldown = _callCooldownSeconds;
+
+            GameLog.Info(LogCategory.Fish,
+                $"'{name}' answered a call: feeding for {_spellCountdown:F1}s, cold for {_callCooldown:F1}s.");
+
+            return true;
         }
 
         /// <summary>
