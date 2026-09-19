@@ -461,7 +461,7 @@ namespace FishingZone.Fishing
             // called the water; until now the game answered both of them with a rule about whose
             // rod it is, while the one thing that would tell them whether they were right went only
             // to the other Fisher. So a refusal above this point would refuse the wrong thing.
-            bool isFisher = PlayerRoleController.GetRoleOf(interactor) == PlayerRole.Fisher;
+            bool isFisher = PlayerRoleController.IsAuthorizedFor(interactor, PlayerRole.Fisher);
 
             if (!IsOccupied)
             {
@@ -816,7 +816,7 @@ namespace FishingZone.Fishing
             // Checked before availability, because being the wrong job is a firmer refusal than the
             // place merely being taken, and it makes the log say which of the two happened.
             PlayerRole role = registry.GetRole(senderId);
-            if (role != PlayerRole.Fisher)
+            if (!registry.IsAuthorizedFor(senderId, PlayerRole.Fisher))
             {
                 GameLog.Info(LogCategory.Fish,
                     $"Refused client {senderId} at '{name}': only a Fisher may fish there, and they are {role}.");
@@ -888,7 +888,7 @@ namespace FishingZone.Fishing
             }
 
             PlayerRole role = registry.GetRole(senderId);
-            if (role != PlayerRole.Fisher)
+            if (!registry.IsAuthorizedFor(senderId, PlayerRole.Fisher))
             {
                 GameLog.Info(LogCategory.Fish,
                     $"Refused client {senderId} fishing at '{name}': only a Fisher may fish there, and they are {role}.");
@@ -981,7 +981,7 @@ namespace FishingZone.Fishing
             }
 
             PlayerRole role = registry.GetRole(senderId);
-            if (role != PlayerRole.Fisher)
+            if (!registry.IsAuthorizedFor(senderId, PlayerRole.Fisher))
             {
                 GameLog.Info(LogCategory.Fish,
                     $"Refused client {senderId} hooking at '{name}': only a Fisher may fish there, and they are {role}.");
@@ -1029,7 +1029,7 @@ namespace FishingZone.Fishing
             }
 
             PlayerRole role = registry.GetRole(senderId);
-            if (role != PlayerRole.Fisher)
+            if (!registry.IsAuthorizedFor(senderId, PlayerRole.Fisher))
             {
                 GameLog.Info(LogCategory.Fish,
                     $"Refused client {senderId} reeling at '{name}': only a Fisher may fish there, and they are {role}.");

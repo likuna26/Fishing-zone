@@ -267,7 +267,7 @@ namespace FishingZone.Fishing
         /// </summary>
         public string GetInteractionText(GameObject interactor)
         {
-            if (PlayerRoleController.GetRoleOf(interactor) != PlayerRole.Observer)
+            if (!PlayerRoleController.IsAuthorizedFor(interactor, PlayerRole.Observer))
             {
                 return _wrongRoleText;
             }
@@ -529,7 +529,7 @@ namespace FishingZone.Fishing
             }
 
             PlayerRole role = registry.GetRole(senderId);
-            if (role != PlayerRole.Observer)
+            if (!registry.IsAuthorizedFor(senderId, PlayerRole.Observer))
             {
                 GameLog.Info(LogCategory.Fish,
                     $"Refused client {senderId} at '{name}': only the Lookout calls the fish up, and they are {role}.");

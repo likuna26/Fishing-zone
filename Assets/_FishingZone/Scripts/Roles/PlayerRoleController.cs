@@ -125,5 +125,65 @@ namespace FishingZone.Roles
             PlayerRoleController controller = interactor.GetComponentInParent<PlayerRoleController>();
             return controller != null ? controller.Role : PlayerRole.None;
         }
+
+        /// <summary>
+        /// Whether this player may do a job, asked of the copies rather than of the registry.
+        ///
+        /// The same rule CrewRoleRegistry enforces, word for word: a job you took is yours, a job
+        /// nobody took is everybody's, and somebody with no job is refused either way. It is written
+        /// twice because the registry is server-only and a prompt has to be answered on the machine
+        /// reading it — not because the two may ever disagree. If they drift, a player is offered
+        /// something the server then refuses, which is the one outcome this must never produce.
+        ///
+        /// Answerable here with nothing new on the wire. Every player object carries one of these
+        /// and every peer holds every player object, so who took what is already known everywhere.
+        ///
+        /// For prompts, and only for prompts. This still decides what a player reads and never what
+        /// they may do; the server is asked separately and its answer is the one that counts.
+        /// </summary>
+        public static bool IsAuthorizedFor(GameObject interactor, PlayerRole required)
+        {
+            if (required == PlayerRole.None)
+            {
+                return false;
+            }
+
+            PlayerRole held = GetRoleOf(interactor);
+            if (held == required)
+            {
+                return true;
+            }
+
+            if (held == PlayerRole.None)
+            {
+                return false;
+            }
+
+            return !IsRoleHeldByAnyone(required);
+        }
+
+        /// <summary>
+        /// Whether anybody aboard took this job, read off the player objects themselves.
+        ///
+        /// Searched rather than kept in a list, for the reason the fishing stations search for one
+        /// another: a list would be a second copy of something the objects already know, and keeping
+        /// two copies agreeing is how stale answers happen. There are at most four of them and this
+        /// is asked when a prompt is read, not every frame.
+        /// </summary>
+        private static bool IsRoleHeldByAnyone(PlayerRole role)
+        {
+            PlayerRoleController[] controllers =
+                FindObjectsByType<PlayerRoleController>(FindObjectsSortMode.None);
+
+            for (int i = 0; i < controllers.Length; i++)
+            {
+                if (controllers[i] != null && controllers[i].Role == role)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
     }
 }

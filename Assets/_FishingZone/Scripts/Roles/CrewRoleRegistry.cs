@@ -60,6 +60,59 @@ namespace FishingZone.Roles
         }
 
         /// <summary>
+        /// Whether this client may do a job, which is not the same question as whether it is theirs.
+        ///
+        /// A job you took is yours. A job nobody took is everybody's — and that is not a loophole
+        /// but the point of the rule a crew of four never notices. Exclusivity exists so that one
+        /// player has to rely on another; an empty seat creates reliance on nobody, so enforcing it
+        /// there is a locked door with no one behind it. With every job filled this reduces to the
+        /// comparison it replaced, and a full crew plays exactly as it did.
+        ///
+        /// Somebody with no job at all is refused either way. The fallback is for a crewmate
+        /// covering an empty post, not for a player who arrived after the lobby and was never given
+        /// anything to cover it from — they are not short-handed, they are unassigned.
+        ///
+        /// Server-side truth. The prompts ask the same question of the replicated copy so a player
+        /// is not offered what this would refuse, but only this decides.
+        /// </summary>
+        public bool IsAuthorizedFor(ulong clientId, PlayerRole required)
+        {
+            if (required == PlayerRole.None)
+            {
+                // Not a job, so there is nothing to be authorized for. No gate asks this; it is
+                // refused here so that none can start by accident.
+                return false;
+            }
+
+            PlayerRole held = GetRole(clientId);
+            if (held == required)
+            {
+                return true;
+            }
+
+            if (held == PlayerRole.None)
+            {
+                return false;
+            }
+
+            return !IsRoleHeld(required);
+        }
+
+        /// <summary>Whether anybody aboard took this job.</summary>
+        private bool IsRoleHeld(PlayerRole role)
+        {
+            foreach (PlayerRole held in _roles.Values)
+            {
+                if (held == role)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// Records a role the server has already accepted. Called by the roster once it has
         /// established whose request it was; this does no validation of its own beyond refusing to
         /// run anywhere but the server.

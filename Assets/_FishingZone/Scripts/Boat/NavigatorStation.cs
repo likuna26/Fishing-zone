@@ -159,7 +159,7 @@ namespace FishingZone.Boat
             // class is allowed to consult it. A determined client could edit that copy in its own
             // memory, and the worst it would buy them is a wheel their own screen offers and the
             // server then refuses. It decides what a player reads, never what they may do.
-            if (PlayerRoleController.GetRoleOf(interactor) != PlayerRole.Navigator)
+            if (!PlayerRoleController.IsAuthorizedFor(interactor, PlayerRole.Navigator))
             {
                 return _wrongRoleText;
             }
@@ -426,7 +426,9 @@ namespace FishingZone.Boat
                 return true;
             }
 
-            return registry.GetRole(clientId) == PlayerRole.Navigator;
+            // A Navigator aboard keeps the wheel to themselves; with none aboard, any crewmate may
+            // take it. Nobody without a job of their own may, short crew or not.
+            return registry.IsAuthorizedFor(clientId, PlayerRole.Navigator);
         }
     }
 }

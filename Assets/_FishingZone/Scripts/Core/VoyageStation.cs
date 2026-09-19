@@ -138,7 +138,7 @@ namespace FishingZone.Core
         /// </summary>
         public string GetInteractionText(GameObject interactor)
         {
-            if (PlayerRoleController.GetRoleOf(interactor) != PlayerRole.Navigator)
+            if (!PlayerRoleController.IsAuthorizedFor(interactor, PlayerRole.Navigator))
             {
                 // Unchanged by the day ending. A Fisher reading the way home is being told whose
                 // job it is, which is as true at dusk as at noon, and telling them the fishing is
@@ -259,7 +259,7 @@ namespace FishingZone.Core
             }
 
             PlayerRole role = registry.GetRole(senderId);
-            if (role != PlayerRole.Navigator)
+            if (!registry.IsAuthorizedFor(senderId, PlayerRole.Navigator))
             {
                 GameLog.Info(LogCategory.Flow,
                     $"Refused client {senderId} at '{name}': only the Navigator says where the boat goes, and they are {role}.");
