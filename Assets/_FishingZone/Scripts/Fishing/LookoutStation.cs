@@ -106,6 +106,25 @@ namespace FishingZone.Fishing
         private string _stockTiredText = "These waters have been worked hard";
 
         /// <summary>
+        /// What kind of day it is here, settled before the crew arrived and unchanged for the rest
+        /// of the voyage.
+        ///
+        /// Said as a condition, like everything else this post reports: no weights, no averages and
+        /// no odds. The Observer is meant to weigh a heavy ground that is quiet against an ordinary
+        /// one that is feeding, and a figure would do that weighing for them.
+        ///
+        /// Silent on an ordinary day by default, so hearing anything at all means something.
+        /// </summary>
+        [SerializeField]
+        private string _conditionOrdinaryText = string.Empty;
+
+        [SerializeField]
+        private string _conditionHeavyText = "The fish here are running big today";
+
+        [SerializeField]
+        private string _conditionLeanText = "The fish here are running small today";
+
+        /// <summary>
         /// What goes between the two halves of the report.
         ///
         /// Kept as its own field rather than baked into the sentences above, so that adding habitat
@@ -178,6 +197,13 @@ namespace FishingZone.Fishing
         private WaterStock _lastStock;
 
         /// <summary>
+        /// Tracked with the rest although it never changes at one ground: the ground under the boat
+        /// does, and crossing from a lean stretch to a heavy one is exactly when this is worth
+        /// hearing.
+        /// </summary>
+        private CatchCondition _lastCondition;
+
+        /// <summary>
         /// Adopted rather than waited for, so a post spawning after the player who is looking at it
         /// still reads correctly. Null-safe before any player exists.
         /// </summary>
@@ -213,6 +239,7 @@ namespace FishingZone.Fishing
             bool feeding = water != null && water.IsFeeding;
             bool callReady = water != null && water.IsCallReady;
             WaterStock stock = water != null ? water.Stock : WaterStock.Fresh;
+            CatchCondition condition = water != null ? water.Condition : CatchCondition.Ordinary;
             ExpeditionPhase light = CurrentLight();
 
             if (ReferenceEquals(ground, _lastGround)
@@ -220,6 +247,7 @@ namespace FishingZone.Fishing
                 && feeding == _lastFeeding
                 && callReady == _lastCallReady
                 && stock == _lastStock
+                && condition == _lastCondition
                 && light == _lastLight)
             {
                 return;
@@ -230,6 +258,7 @@ namespace FishingZone.Fishing
             _lastFeeding = feeding;
             _lastCallReady = callReady;
             _lastStock = stock;
+            _lastCondition = condition;
             _lastLight = light;
 
             RefreshLocalPrompt();
@@ -294,6 +323,7 @@ namespace FishingZone.Fishing
             return text.Replace("{0}", ground.DisplayName)
                    + _reportSeparator + DescribeHabitat(ground)
                    + DescribeStock(water)
+                   + DescribeCondition(water)
                    + DescribeCall(water)
                    + DescribeLight();
         }
@@ -373,6 +403,31 @@ namespace FishingZone.Fishing
             ExpeditionWindow window = ExpeditionWindow.Current;
 
             return window != null ? window.Phase : ExpeditionPhase.Open;
+        }
+
+        /// <summary>
+        /// What kind of day it is here, said as a condition.
+        ///
+        /// Sits beside the stock, because both are facts about the fish below rather than about the
+        /// water's mood: how many are left, and how big they are running.
+        /// </summary>
+        private string DescribeCondition(WaterActivity water)
+        {
+            string text;
+            switch (water.Condition)
+            {
+                case CatchCondition.Heavy:
+                    text = _conditionHeavyText;
+                    break;
+                case CatchCondition.Lean:
+                    text = _conditionLeanText;
+                    break;
+                default:
+                    text = _conditionOrdinaryText;
+                    break;
+            }
+
+            return string.IsNullOrEmpty(text) ? string.Empty : _reportSeparator + text;
         }
 
         /// <summary>

@@ -25,6 +25,21 @@ namespace FishingZone.Fishing
     }
 
     /// <summary>
+    /// How the fish are running at a stretch of water today.
+    ///
+    /// Not how many, which is stock, and not whether they are biting, which is the water itself.
+    /// This is the size of what comes up, and it is settled once when the crew arrive.
+    ///
+    /// Written out because it travels as an integer.
+    /// </summary>
+    public enum CatchCondition
+    {
+        Lean = 0,
+        Ordinary = 1,
+        Heavy = 2
+    }
+
+    /// <summary>
     /// Whether the fish are feeding.
     ///
     /// One thing about the water, and deliberately only one: fish are either moving or they are not.
@@ -118,6 +133,19 @@ namespace FishingZone.Fishing
         private int _tiredAfterCatches = 6;
 
         /// <summary>
+        /// How often a day at this water runs small or runs big. What is left over is an ordinary
+        /// day, so at these odds half of them are, and a crew is not promised a story every trip.
+        ///
+        /// Rolled per ground and independently, so the two can disagree — which is the whole point.
+        /// A voyage where both come up ordinary is a quiet one, and that is allowed.
+        /// </summary>
+        [SerializeField]
+        private float _leanChance = 0.25f;
+
+        [SerializeField]
+        private float _heavyChance = 0.25f;
+
+        /// <summary>
         /// What worked water does to the wait for a bite, on top of whatever the water is doing.
         ///
         /// Both above one and both gentle. This is the first thing in the project that takes fishing
@@ -175,6 +203,20 @@ namespace FishingZone.Fishing
             NetworkVariableWritePermission.Server);
 
         public WaterStock Stock => (WaterStock)_stock.Value;
+
+        /// <summary>
+        /// How the fish are running here today. Settled once when the crew arrive and unchanged for
+        /// the rest of the voyage: it is what kind of day it is, not something the water does.
+        ///
+        /// Coarse and replicated, like everything else anybody is told about a ground. What travels
+        /// is the condition; the arithmetic it implies stays where the fish are weighed.
+        /// </summary>
+        private readonly NetworkVariable<int> _condition = new NetworkVariable<int>(
+            (int)CatchCondition.Ordinary,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server);
+
+        public CatchCondition Condition => (CatchCondition)_condition.Value;
 
         /// <summary>
         /// What the current water does to a wait for a bite. Read by the server alone, at the moment
@@ -389,10 +431,16 @@ namespace FishingZone.Fishing
                 _isFeeding.Value = feeding;
                 ArmSpellCountdown(feeding);
 
+                // Settled here and never again. What kind of day it is cannot change under a crew
+                // who have already committed to sailing somewhere on the strength of it.
+                CatchCondition condition = RollCondition();
+                _condition.Value = (int)condition;
+
                 // Named, because a map with several grounds turns one line about "the water" into
                 // several that cannot be told apart.
                 GameLog.Info(LogCategory.Fish,
-                    $"'{name}' opened {DescribeState(feeding)}, for {_spellCountdown:F1}s.");
+                    $"'{name}' opened {DescribeState(feeding)}, for {_spellCountdown:F1}s, " +
+                    $"with the fish {DescribeCondition(condition)}.");
             }
         }
 
@@ -530,6 +578,35 @@ namespace FishingZone.Fishing
         private static string DescribeState(bool feeding)
         {
             return feeding ? "feeding" : "quiet";
+        }
+
+        /// <summary>
+        /// Draws the kind of day this is. Ordinary takes whatever the two chances leave, so setting
+        /// both to nothing gives every ground an ordinary day and the mechanic simply goes quiet.
+        /// </summary>
+        private CatchCondition RollCondition()
+        {
+            float roll = Random.value;
+
+            if (roll < _leanChance)
+            {
+                return CatchCondition.Lean;
+            }
+
+            return roll < _leanChance + _heavyChance ? CatchCondition.Heavy : CatchCondition.Ordinary;
+        }
+
+        private static string DescribeCondition(CatchCondition condition)
+        {
+            switch (condition)
+            {
+                case CatchCondition.Heavy:
+                    return "running big";
+                case CatchCondition.Lean:
+                    return "running small";
+                default:
+                    return "running ordinary";
+            }
         }
 
         private static string DescribeStock(WaterStock stock)

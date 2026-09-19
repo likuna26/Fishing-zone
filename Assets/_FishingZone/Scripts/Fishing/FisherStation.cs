@@ -1483,7 +1483,35 @@ namespace FishingZone.Fishing
             int minTenths = Mathf.Max(1, Mathf.RoundToInt(fish.MinWeightKg * 10f));
             int maxTenths = Mathf.Max(minTenths, Mathf.RoundToInt(fish.MaxWeightKg * 10f));
 
-            return Random.Range(minTenths, maxTenths + 1);
+            int weight = Random.Range(minTenths, maxTenths + 1);
+
+            // What kind of day it is at the water this cast went into — the ground the hook entered,
+            // never the one the boat is over now, as with the species and the fish taken off it.
+            WaterActivity water = WaterActivity.For(_castGround);
+            CatchCondition condition = water != null ? water.Condition : CatchCondition.Ordinary;
+
+            if (condition == CatchCondition.Ordinary)
+            {
+                return weight;
+            }
+
+            // A second draw from the same range, keeping the better or the worse of the two.
+            //
+            // Deliberately not a multiplier. Scaling a weight would put a five-kilo salmon at six
+            // and a half on a good day, which is no longer a salmon: the range on the definition is
+            // what the species IS, and a day at sea has no business editing it. Both draws come out
+            // of that range, so whichever is kept is inside it — the rule cannot be broken rather
+            // than merely being asked not to.
+            //
+            // What it moves is the middle. Two draws kept high average about two thirds of the way
+            // up a species' range against a half, so a good day is felt across a trip's worth of
+            // fish rather than announced by any one of them, and a mackerel never out-weighs a
+            // mackerel.
+            int second = Random.Range(minTenths, maxTenths + 1);
+
+            return condition == CatchCondition.Heavy
+                ? Mathf.Max(weight, second)
+                : Mathf.Min(weight, second);
         }
 
         /// <summary>
