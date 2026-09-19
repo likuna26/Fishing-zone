@@ -78,6 +78,19 @@ namespace FishingZone.Fishing
             new Dictionary<ulong, VoyageTally>();
 
         /// <summary>
+        /// The heaviest trip this crew has brought home since they connected.
+        ///
+        /// Session-lived, like the catches themselves: it survives every voyage and is forgotten
+        /// only when the session is. A trip is a number with nothing to measure it against until
+        /// there is a previous one to beat, and this is that number.
+        ///
+        /// Raised as fish come aboard rather than when a voyage ends, so it never depends on which
+        /// arrives first, a scene transition or a board asking to read it. A record cannot be lost
+        /// to an ordering.
+        /// </summary>
+        private int _bestVoyageWeightTenths;
+
+        /// <summary>
         /// Watched so the log knows when a trip begins. Held rather than looked up each time, so
         /// there is something to unsubscribe from however this object goes away.
         /// </summary>
@@ -188,6 +201,15 @@ namespace FishingZone.Fishing
             _voyageCatchesByClient.TryGetValue(clientId, out VoyageTally tally);
             _voyageCatchesByClient[clientId] =
                 new VoyageTally(tally.Count + 1, tally.WeightTenths + weightTenths);
+
+            // Checked with every fish rather than once at the end of a trip. A crew beats their own
+            // record the moment the fish that does it comes aboard, and measuring it here means no
+            // transition has to happen in any particular order for the record to be right.
+            int voyageWeight = GetVoyageCatchWeightTenths();
+            if (voyageWeight > _bestVoyageWeightTenths)
+            {
+                _bestVoyageWeightTenths = voyageWeight;
+            }
         }
 
         /// <summary>
@@ -306,6 +328,27 @@ namespace FishingZone.Fishing
         }
 
         /// <summary>
+        /// The best trip this crew has landed, in tenths of a kilogram, and none on a machine that
+        /// is not the server.
+        ///
+        /// Nought until somebody lands something, which reads as no record rather than as a record
+        /// of nothing — a crew who have never been out have not had a bad trip.
+        ///
+        /// Not lowered by a crewmate leaving. The trip that set it happened, and the fish were on
+        /// the deck; forgetting it because somebody logged off afterwards would be rewriting what
+        /// the crew did.
+        /// </summary>
+        public int GetBestVoyageWeightTenths()
+        {
+            if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer)
+            {
+                return 0;
+            }
+
+            return _bestVoyageWeightTenths;
+        }
+
+        /// <summary>
         /// A crewmate who leaves takes their catch with them. Only theirs: everybody still aboard
         /// keeps what they landed.
         ///
@@ -333,6 +376,7 @@ namespace FishingZone.Fishing
         {
             _catchesByClient.Clear();
             _voyageCatchesByClient.Clear();
+            _bestVoyageWeightTenths = 0;
         }
     }
 }

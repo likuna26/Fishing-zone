@@ -65,6 +65,24 @@ namespace FishingZone.Fishing
         [SerializeField]
         private string _voyageEmptyText = "None this trip";
 
+        /// <summary>
+        /// Said last, once there is a record to measure a trip against. Takes the weight.
+        ///
+        /// Silent until somebody has landed something: a crew who have never been out have not had
+        /// a bad trip, and a board announcing a best of nothing would be measuring them against a
+        /// voyage that never happened.
+        /// </summary>
+        [SerializeField]
+        private string _bestVoyageText = "Their best trip yet was {0} kg";
+
+        /// <summary>
+        /// Said instead when the trip just ended is the record. Naming it rather than printing the
+        /// same weight twice, because a crew who have just beaten themselves should be told so, not
+        /// left to notice that two numbers match.
+        /// </summary>
+        [SerializeField]
+        private string _bestVoyageMatchedText = "Their best trip yet";
+
         /// <summary>What goes between the two sentences.</summary>
         [SerializeField]
         private string _reportSeparator = ". ";
@@ -102,6 +120,16 @@ namespace FishingZone.Fishing
             NetworkVariableWritePermission.Server);
 
         /// <summary>
+        /// The heaviest trip of the session so far. Read from the log with the other two and at the
+        /// same moment, because a number and the thing it is measured against arriving separately
+        /// would be worse than either arriving late.
+        /// </summary>
+        private readonly NetworkVariable<int> _bestVoyageWeightTenths = new NetworkVariable<int>(
+            0,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server);
+
+        /// <summary>
         /// The server asks the log what the crew has landed and publishes the answer.
         ///
         /// Asked here rather than kept up to date, because the board is built fresh every time the
@@ -133,10 +161,12 @@ namespace FishingZone.Fishing
             // the grounds, which is exactly after everybody has finished reading this.
             _voyageCatchCount.Value = log.GetVoyageCatchCount();
             _voyageWeightTenths.Value = log.GetVoyageCatchWeightTenths();
+            _bestVoyageWeightTenths.Value = log.GetBestVoyageWeightTenths();
 
             GameLog.Info(LogCategory.Fish,
                 $"'{name}' is showing {_voyageCatchCount.Value} from the trip weighing " +
-                $"{FormatWeight(_voyageWeightTenths.Value)} kg, and a session total of {_crewCatchCount.Value}.");
+                $"{FormatWeight(_voyageWeightTenths.Value)} kg, a session total of {_crewCatchCount.Value}, " +
+                $"and a best trip of {FormatWeight(_bestVoyageWeightTenths.Value)} kg.");
         }
 
         /// <summary>
@@ -165,7 +195,9 @@ namespace FishingZone.Fishing
                 return _emptyText;
             }
 
-            return string.Format(_countText, count) + _reportSeparator + DescribeVoyage();
+            return string.Format(_countText, count)
+                   + _reportSeparator + DescribeVoyage()
+                   + DescribeBest();
         }
 
         /// <summary>
@@ -198,6 +230,34 @@ namespace FishingZone.Fishing
             return string.IsNullOrEmpty(_voyageCountText)
                 ? _voyageEmptyText
                 : _voyageCountText.Replace("{0}", voyage.ToString());
+        }
+
+        /// <summary>
+        /// What the crew have to beat, said only once there is something to beat.
+        ///
+        /// A trip that equals the record is named rather than measured. The two readings are the
+        /// same weight, and printing it twice would leave the crew to work out for themselves that
+        /// they had just done their best evening's work.
+        /// </summary>
+        private string DescribeBest()
+        {
+            int best = _bestVoyageWeightTenths.Value;
+
+            if (best <= 0)
+            {
+                return string.Empty;
+            }
+
+            if (_voyageWeightTenths.Value >= best)
+            {
+                return string.IsNullOrEmpty(_bestVoyageMatchedText)
+                    ? string.Empty
+                    : _reportSeparator + _bestVoyageMatchedText;
+            }
+
+            return string.IsNullOrEmpty(_bestVoyageText)
+                ? string.Empty
+                : _reportSeparator + _bestVoyageText.Replace("{0}", FormatWeight(best));
         }
 
         /// <summary>
