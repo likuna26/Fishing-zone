@@ -1422,6 +1422,20 @@ namespace FishingZone.Fishing
 
             log.RecordCatchOnServer(clientId, fishId, weightTenths);
 
+            // Takes the fish off the water it came out of, here and nowhere else — so a cast, a
+            // bite, a bite that got away, a fish lost off the hook and a catch too broken to keep
+            // all leave the ground exactly as they found it. Past the two refusals above, this is
+            // the one line in the project that means a fish belongs to the trip.
+            //
+            // The ground the cast began over, never the one the boat is above now: the crew may
+            // well have sailed while the line was out, and it is the first water that is a fish the
+            // poorer. Reached through the captured reference for the same reason the species was.
+            WaterActivity water = WaterActivity.For(_castGround);
+            if (water != null)
+            {
+                water.NoteCatchOnServer();
+            }
+
             int sessionCatches = log.GetCatchCount(clientId);
 
             // The same number the line below reports, kept where the prompt can reach it. Taken

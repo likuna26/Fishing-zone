@@ -12,6 +12,19 @@ using Random = UnityEngine.Random;
 namespace FishingZone.Fishing
 {
     /// <summary>
+    /// How much a stretch of water has been worked this voyage.
+    ///
+    /// Written out because it travels as an integer, and letting these shift with a future
+    /// reordering would silently change what a crew is being told.
+    /// </summary>
+    public enum WaterStock
+    {
+        Fresh = 0,
+        Working = 1,
+        Tired = 2
+    }
+
+    /// <summary>
     /// Whether the fish are feeding.
     ///
     /// One thing about the water, and deliberately only one: fish are either moving or they are not.
@@ -90,6 +103,35 @@ namespace FishingZone.Fishing
         private float _callCooldownSeconds = 120f;
 
         /// <summary>
+        /// How many fish must come out of this water before the ones left grow wary, and how many
+        /// before it is properly worked over.
+        ///
+        /// Deliberately small to begin with, so a deliberate test reaches both states inside one
+        /// short voyage rather than needing a full day at sea. These are placeholders for measuring
+        /// against, not balance: the trip count on the Port board is the instrument, and the right
+        /// numbers are some fraction of what a crew actually lands in a voyage.
+        /// </summary>
+        [SerializeField]
+        private int _workingAfterCatches = 3;
+
+        [SerializeField]
+        private int _tiredAfterCatches = 6;
+
+        /// <summary>
+        /// What worked water does to the wait for a bite, on top of whatever the water is doing.
+        ///
+        /// Both above one and both gentle. This is the first thing in the project that takes fishing
+        /// away rather than adding to it, and a ground the crew cannot fish is not a decision about
+        /// whether to move — it is an eviction. The point is to make crossing worth considering, not
+        /// to make staying pointless.
+        /// </summary>
+        [SerializeField]
+        private float _workingBiteMultiplier = 1.25f;
+
+        [SerializeField]
+        private float _tiredBiteMultiplier = 1.6f;
+
+        /// <summary>
         /// The whole of what travels. One bit, written by the server and read by everyone, which is
         /// all the lookout needs and all anybody is entitled to know.
         /// </summary>
@@ -120,10 +162,47 @@ namespace FishingZone.Fishing
         public bool IsCallReady => _isCallReady.Value;
 
         /// <summary>
+        /// How worked this water is. Coarse and replicated, like the water itself and the light:
+        /// what travels is a condition, never a count, so nobody can read a threshold off a screen
+        /// and nothing does the Lookout's judging for them.
+        ///
+        /// One way for the length of a voyage. It is scene state on a scene object, so sailing home
+        /// and out again brings water nobody has touched.
+        /// </summary>
+        private readonly NetworkVariable<int> _stock = new NetworkVariable<int>(
+            (int)WaterStock.Fresh,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server);
+
+        public WaterStock Stock => (WaterStock)_stock.Value;
+
+        /// <summary>
         /// What the current water does to a wait for a bite. Read by the server alone, at the moment
         /// a line goes out, and never afterwards.
+        ///
+        /// The two conditions multiply rather than replace one another, and that is the whole of the
+        /// interaction: how the fish are behaving now, times how many of them are left to behave.
+        /// Feeding water on a worked ground is still far better than quiet water on a fresh one, so
+        /// the Lookout's call keeps every bit of its worth on the very ground that most needs it.
         /// </summary>
-        public float BiteDelayMultiplier => _isFeeding.Value ? _feedingBiteMultiplier : _quietBiteMultiplier;
+        public float BiteDelayMultiplier =>
+            (_isFeeding.Value ? _feedingBiteMultiplier : _quietBiteMultiplier) * StockMultiplier;
+
+        private float StockMultiplier
+        {
+            get
+            {
+                switch (Stock)
+                {
+                    case WaterStock.Tired:
+                        return _tiredBiteMultiplier;
+                    case WaterStock.Working:
+                        return _workingBiteMultiplier;
+                    default:
+                        return 1f;
+                }
+            }
+        }
 
         /// <summary>
         /// The water this describes. Taken from the same object rather than dragged in, so a ground
@@ -149,6 +228,12 @@ namespace FishingZone.Fishing
         /// the water is doing now.
         /// </summary>
         private float _spellCountdown;
+
+        /// <summary>
+        /// How many fish have come out of here this voyage. Server-only and never replicated: what
+        /// everyone may know is the condition of the water, not the arithmetic behind it.
+        /// </summary>
+        private int _caughtHere;
 
         /// <summary>
         /// How much longer this water refuses to answer. Server-only, like every clock here, and
@@ -226,6 +311,67 @@ namespace FishingZone.Fishing
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// The water belonging to one ground, or null if that ground has none.
+        ///
+        /// Asked by name rather than by place, because a catch belongs to the water the hook went
+        /// into and the boat may well have sailed since. Where the crew are now is a different
+        /// question, and <see cref="Under"/> is the one that answers it.
+        /// </summary>
+        public static WaterActivity For(FishingGround ground)
+        {
+            if (ground == null)
+            {
+                return null;
+            }
+
+            for (int i = 0; i < Registered.Count; i++)
+            {
+                WaterActivity water = Registered[i];
+                if (water != null && water.Ground == ground)
+                {
+                    return water;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Takes one fish off this water's account.
+        ///
+        /// Server only, and called once per catch that actually belongs to the trip — not per cast,
+        /// per bite, per missed bite or per fish that got away. A crew who worked a ground hard and
+        /// landed nothing have not thinned it out.
+        ///
+        /// Counts up and never down. Water does not recover inside a voyage: a ground that has been
+        /// worked stays worked until the crew sail home, which is what makes crossing to the other
+        /// one an answer rather than a wait.
+        /// </summary>
+        public void NoteCatchOnServer()
+        {
+            if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer)
+            {
+                return;
+            }
+
+            _caughtHere++;
+
+            WaterStock next = _caughtHere >= _tiredAfterCatches ? WaterStock.Tired
+                : _caughtHere >= _workingAfterCatches ? WaterStock.Working
+                : WaterStock.Fresh;
+
+            if (next == Stock)
+            {
+                return;
+            }
+
+            _stock.Value = (int)next;
+
+            GameLog.Info(LogCategory.Fish,
+                $"'{name}' is {DescribeStock(next)} after {_caughtHere} landed here.");
         }
 
         public override void OnNetworkSpawn()
@@ -384,6 +530,19 @@ namespace FishingZone.Fishing
         private static string DescribeState(bool feeding)
         {
             return feeding ? "feeding" : "quiet";
+        }
+
+        private static string DescribeStock(WaterStock stock)
+        {
+            switch (stock)
+            {
+                case WaterStock.Tired:
+                    return "worked hard";
+                case WaterStock.Working:
+                    return "thinning out";
+                default:
+                    return "untouched";
+            }
         }
     }
 }

@@ -87,6 +87,25 @@ namespace FishingZone.Fishing
         private string _unknownHabitatText = "Hard to say what runs here";
 
         /// <summary>
+        /// What the Lookout can tell about how hard this water has been worked.
+        ///
+        /// Said as a condition and never as a count: no number, no threshold, no share of anything.
+        /// The Observer is meant to judge whether it is worth crossing, and a figure on a sign would
+        /// do that judging for them.
+        ///
+        /// Silent on untouched water by default, so the first warning is something appearing rather
+        /// than something changing — and so the usual report stays as short as it was.
+        /// </summary>
+        [SerializeField]
+        private string _stockFreshText = string.Empty;
+
+        [SerializeField]
+        private string _stockWorkingText = "The fish here are growing wary";
+
+        [SerializeField]
+        private string _stockTiredText = "These waters have been worked hard";
+
+        /// <summary>
         /// What goes between the two halves of the report.
         ///
         /// Kept as its own field rather than baked into the sentences above, so that adding habitat
@@ -153,6 +172,12 @@ namespace FishingZone.Fishing
         private ExpeditionPhase _lastLight;
 
         /// <summary>
+        /// Tracked with the rest, because a ground tires while somebody is standing still watching
+        /// it — which is the moment the warning is worth anything at all.
+        /// </summary>
+        private WaterStock _lastStock;
+
+        /// <summary>
         /// Adopted rather than waited for, so a post spawning after the player who is looking at it
         /// still reads correctly. Null-safe before any player exists.
         /// </summary>
@@ -187,12 +212,14 @@ namespace FishingZone.Fishing
             WaterActivity water = WaterActivity.Under(transform.position);
             bool feeding = water != null && water.IsFeeding;
             bool callReady = water != null && water.IsCallReady;
+            WaterStock stock = water != null ? water.Stock : WaterStock.Fresh;
             ExpeditionPhase light = CurrentLight();
 
             if (ReferenceEquals(ground, _lastGround)
                 && ReferenceEquals(water, _lastWater)
                 && feeding == _lastFeeding
                 && callReady == _lastCallReady
+                && stock == _lastStock
                 && light == _lastLight)
             {
                 return;
@@ -202,6 +229,7 @@ namespace FishingZone.Fishing
             _lastWater = water;
             _lastFeeding = feeding;
             _lastCallReady = callReady;
+            _lastStock = stock;
             _lastLight = light;
 
             RefreshLocalPrompt();
@@ -265,8 +293,35 @@ namespace FishingZone.Fishing
 
             return text.Replace("{0}", ground.DisplayName)
                    + _reportSeparator + DescribeHabitat(ground)
+                   + DescribeStock(water)
                    + DescribeCall(water)
                    + DescribeLight();
+        }
+
+        /// <summary>
+        /// How worked this water is, said as a condition.
+        ///
+        /// Sits with the habitat rather than with the call, because both are facts about the ground
+        /// below: what lives here, and how much of it is left. Silent on untouched water, so the
+        /// crew hear about it exactly when there is something to hear.
+        /// </summary>
+        private string DescribeStock(WaterActivity water)
+        {
+            string text;
+            switch (water.Stock)
+            {
+                case WaterStock.Tired:
+                    text = _stockTiredText;
+                    break;
+                case WaterStock.Working:
+                    text = _stockWorkingText;
+                    break;
+                default:
+                    text = _stockFreshText;
+                    break;
+            }
+
+            return string.IsNullOrEmpty(text) ? string.Empty : _reportSeparator + text;
         }
 
         /// <summary>
