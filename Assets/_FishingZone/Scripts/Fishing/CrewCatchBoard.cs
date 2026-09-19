@@ -48,6 +48,16 @@ namespace FishingZone.Fishing
         private string _voyageCountText = "{0} of them this trip";
 
         /// <summary>
+        /// Said when the trip was weighed as well as counted. Takes the count and then the weight.
+        ///
+        /// The line above remains for a trip that somehow came back unweighed — a fish whose range
+        /// was never configured weighs nothing, exactly as the catch prompts already allow — so the
+        /// board says what it knows and never invents a number it does not have.
+        /// </summary>
+        [SerializeField]
+        private string _voyageWeighedText = "{0} of them this trip, {1} kg";
+
+        /// <summary>
         /// Said when the crew came home empty. Its own sentence rather than the one above with a
         /// zero in it, for the reason the empty board has one: "0 of them this trip" is how a
         /// machine says it.
@@ -75,6 +85,18 @@ namespace FishingZone.Fishing
         /// without the other.
         /// </summary>
         private readonly NetworkVariable<int> _voyageCatchCount = new NetworkVariable<int>(
+            0,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server);
+
+        /// <summary>
+        /// What that trip weighed, in tenths of a kilogram.
+        ///
+        /// Tenths on the wire and tenths on the board, divided once where it is read: an int cannot
+        /// arrive rounded differently on two machines, which a float shared to one decimal place
+        /// could. The same arrangement a single catch has always travelled by.
+        /// </summary>
+        private readonly NetworkVariable<int> _voyageWeightTenths = new NetworkVariable<int>(
             0,
             NetworkVariableReadPermission.Everyone,
             NetworkVariableWritePermission.Server);
@@ -110,9 +132,11 @@ namespace FishingZone.Fishing
             // because nothing clears it on the way home — it is cleared when the crew next reaches
             // the grounds, which is exactly after everybody has finished reading this.
             _voyageCatchCount.Value = log.GetVoyageCatchCount();
+            _voyageWeightTenths.Value = log.GetVoyageCatchWeightTenths();
 
             GameLog.Info(LogCategory.Fish,
-                $"'{name}' is showing {_voyageCatchCount.Value} from the trip and a session total of {_crewCatchCount.Value}.");
+                $"'{name}' is showing {_voyageCatchCount.Value} from the trip weighing " +
+                $"{FormatWeight(_voyageWeightTenths.Value)} kg, and a session total of {_crewCatchCount.Value}.");
         }
 
         /// <summary>
@@ -159,9 +183,31 @@ namespace FishingZone.Fishing
                 return _voyageEmptyText;
             }
 
+            int tenths = _voyageWeightTenths.Value;
+
+            // Weighed if there is a weight to report, and named-but-unweighed otherwise — the same
+            // degradation a single catch prompt already makes, and for the same reason: saying how
+            // many beats saying nothing, and both beat inventing a number.
+            if (tenths > 0 && !string.IsNullOrEmpty(_voyageWeighedText))
+            {
+                return _voyageWeighedText
+                    .Replace("{0}", voyage.ToString())
+                    .Replace("{1}", FormatWeight(tenths));
+            }
+
             return string.IsNullOrEmpty(_voyageCountText)
                 ? _voyageEmptyText
                 : _voyageCountText.Replace("{0}", voyage.ToString());
+        }
+
+        /// <summary>
+        /// Tenths of a kilogram as a number with one decimal place, built from the whole number
+        /// rather than from a float, so every machine writes the same digits and none of them writes
+        /// a comma where another writes a point.
+        /// </summary>
+        private static string FormatWeight(int tenths)
+        {
+            return $"{tenths / 10}.{tenths % 10}";
         }
 
         /// <summary>

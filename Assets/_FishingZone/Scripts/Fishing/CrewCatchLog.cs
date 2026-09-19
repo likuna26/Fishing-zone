@@ -40,6 +40,26 @@ namespace FishingZone.Fishing
             public int WeightTenths { get; }
         }
 
+        /// <summary>
+        /// What one crewmate has landed on this trip: how many, and how much they came to.
+        ///
+        /// Two numbers rather than two dictionaries, so the trip has one entry per person and
+        /// therefore one disconnect rule and one clearing. A second collection alongside the first
+        /// would be a second thing to remember to empty.
+        /// </summary>
+        private readonly struct VoyageTally
+        {
+            public VoyageTally(int count, int weightTenths)
+            {
+                Count = count;
+                WeightTenths = weightTenths;
+            }
+
+            public int Count { get; }
+
+            public int WeightTenths { get; }
+        }
+
         private readonly Dictionary<ulong, List<StoredCatch>> _catchesByClient =
             new Dictionary<ulong, List<StoredCatch>>();
 
@@ -54,7 +74,8 @@ namespace FishingZone.Fishing
         /// unless they come out of this one too, a trip could end up claiming more than the session
         /// it belongs to. One rule, applied to both, rather than a second rule invented for this.
         /// </summary>
-        private readonly Dictionary<ulong, int> _voyageCatchesByClient = new Dictionary<ulong, int>();
+        private readonly Dictionary<ulong, VoyageTally> _voyageCatchesByClient =
+            new Dictionary<ulong, VoyageTally>();
 
         /// <summary>
         /// Watched so the log knows when a trip begins. Held rather than looked up each time, so
@@ -161,10 +182,12 @@ namespace FishingZone.Fishing
 
             catches.Add(new StoredCatch(fishId, weightTenths));
 
-            // The same fish, counted again against the trip it was landed on. One call site, so a
-            // catch cannot reach one tally without reaching the other.
-            _voyageCatchesByClient.TryGetValue(clientId, out int voyageCatches);
-            _voyageCatchesByClient[clientId] = voyageCatches + 1;
+            // The same fish, counted again against the trip it was landed on, and weighed while it
+            // is here. One call site, so a catch cannot reach one tally without reaching the other,
+            // and the weight cannot drift from the count it belongs to.
+            _voyageCatchesByClient.TryGetValue(clientId, out VoyageTally tally);
+            _voyageCatchesByClient[clientId] =
+                new VoyageTally(tally.Count + 1, tally.WeightTenths + weightTenths);
         }
 
         /// <summary>
@@ -245,9 +268,38 @@ namespace FishingZone.Fishing
 
             int total = 0;
 
-            foreach (int catches in _voyageCatchesByClient.Values)
+            foreach (VoyageTally tally in _voyageCatchesByClient.Values)
             {
-                total += catches;
+                total += tally.Count;
+            }
+
+            return total;
+        }
+
+        /// <summary>
+        /// What the whole crew's trip came to on the scale, in tenths of a kilogram, and none on a
+        /// machine that is not the server.
+        ///
+        /// Tenths rather than kilograms all the way through, for the reason a single catch already
+        /// travels that way: every machine divides the same whole number and none of them can round
+        /// it differently.
+        ///
+        /// A trip of five small fish and a trip of five large ones have read identically since
+        /// there were trips, even though the game weighed every one of them in front of the crew as
+        /// it came aboard. This is that number, kept rather than announced and forgotten.
+        /// </summary>
+        public int GetVoyageCatchWeightTenths()
+        {
+            if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer)
+            {
+                return 0;
+            }
+
+            int total = 0;
+
+            foreach (VoyageTally tally in _voyageCatchesByClient.Values)
+            {
+                total += tally.WeightTenths;
             }
 
             return total;
