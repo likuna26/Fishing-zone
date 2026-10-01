@@ -423,6 +423,7 @@ MonoBehaviour:
   _destination: 3
   _departText: 
   _wrongRoleText: 
+  _dayOverText: 
 --- !u!1 &302368434
 GameObject:
   m_ObjectHideFlags: 0
@@ -813,6 +814,12 @@ MonoBehaviour:
   _quietBiteMultiplier: 1.6
   _calledFeedingSeconds: 30
   _callCooldownSeconds: 120
+  _workingAfterCatches: 3
+  _tiredAfterCatches: 6
+  _leanChance: 0.25
+  _heavyChance: 0.25
+  _workingBiteMultiplier: 1.25
+  _tiredBiteMultiplier: 1.6
 --- !u!1 &727601084
 GameObject:
   m_ObjectHideFlags: 0
@@ -1164,6 +1171,12 @@ MonoBehaviour:
   _wrongRoleText: Only the Lookout can read the water
   _habitatText: '{0} run here'
   _unknownHabitatText: Hard to say what runs here
+  _stockFreshText: 
+  _stockWorkingText: The fish here are growing wary
+  _stockTiredText: These waters have been worked hard
+  _conditionOrdinaryText: 
+  _conditionHeavyText: The fish here are running big today
+  _conditionLeanText: The fish here are running small today
   _reportSeparator: '. '
   _callReadyText: Interact to call them up
   _callCoolingText: They will not come up again yet
@@ -1459,6 +1472,12 @@ MonoBehaviour:
   _quietBiteMultiplier: 1.6
   _calledFeedingSeconds: 30
   _callCooldownSeconds: 120
+  _workingAfterCatches: 3
+  _tiredAfterCatches: 6
+  _leanChance: 0.25
+  _heavyChance: 0.25
+  _workingBiteMultiplier: 1.25
+  _tiredBiteMultiplier: 1.6
 --- !u!114 &1423556785
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1678,6 +1697,8 @@ MonoBehaviour:
   _fishText: Fish here
   _occupiedText: Cast to fish, or leave the station
   _offGroundsText: Nothing is feeding under us here
+  _windowClosedText: "The light has gone \u2014 no more casts today. Time to head
+    for port"
   _stopFishText: "Waiting for a bite \u2014 release to stop, or leave the station"
   _busyText: Station in use
   _busyFishingText: Someone has a line out here
@@ -1852,6 +1873,8 @@ MonoBehaviour:
   _fishText: Fish here
   _occupiedText: Cast to fish, or leave the station
   _offGroundsText: Nothing is feeding under us here
+  _windowClosedText: "The light has gone \u2014 no more casts today. Time to head
+    for port"
   _stopFishText: "Waiting for a bite \u2014 release to stop, or leave the station"
   _busyText: Station in use
   _busyFishingText: Someone has a line out here
