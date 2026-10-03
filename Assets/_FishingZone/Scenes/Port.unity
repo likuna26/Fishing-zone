@@ -130,6 +130,7 @@ GameObject:
   - component: {fileID: 30368113}
   - component: {fileID: 30368112}
   - component: {fileID: 30368111}
+  - component: {fileID: 30368114}
   m_Layer: 0
   m_Name: Directional Light
   m_TagString: Untagged
@@ -246,6 +247,24 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 50, y: -30, z: 0}
+--- !u!114 &30368114
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 30368110}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 000d6b90b6b3d404f89df91d704b32db, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FishingZone::FishingZone.World.DayNightLighting
+  _noonIntensity: 1
+  _nightIntensity: 0.05
+  _middayColor: {r: 1, g: 1, b: 1, a: 1}
+  _lowSunColor: {r: 1, g: 0.6, b: 0.35, a: 1}
+  _dayAmbientIntensity: 1
+  _nightAmbientIntensity: 0.15
 --- !u!1 &120468879
 GameObject:
   m_ObjectHideFlags: 0
@@ -1158,6 +1177,12 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   _emptyText: The crew has not landed anything yet
   _countText: The crew has landed {0} fish this session
+  _voyageCountText: '{0} of them this trip'
+  _voyageWeighedText: '{0} of them this trip, {1} kg'
+  _voyageEmptyText: None this trip
+  _bestVoyageText: Their best trip yet was {0} kg
+  _bestVoyageMatchedText: Their best trip yet
+  _reportSeparator: '. '
 --- !u!1 &2114678406
 GameObject:
   m_ObjectHideFlags: 0

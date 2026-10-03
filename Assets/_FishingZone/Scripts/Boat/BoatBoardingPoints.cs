@@ -19,8 +19,8 @@ namespace FishingZone.Boat
     /// register with the scene's list and describe places in the world, which is still what the
     /// port wants; mixing the two would let a deck position be handed out as a fixed one.
     ///
-    /// One per scene, reachable without a reference for the same reason the expedition window is:
-    /// what asks about it is spawned by code and has no Inspector to be wired in.
+    /// One per scene, reachable without a reference: what asks about it is spawned by code and has
+    /// no Inspector to be wired in.
     /// </summary>
     public class BoatBoardingPoints : MonoBehaviour
     {

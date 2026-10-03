@@ -139,6 +139,7 @@ GameObject:
   - component: {fileID: 519420020}
   - component: {fileID: 519420021}
   - component: {fileID: 519420022}
+  - component: {fileID: 519420023}
   m_Layer: 0
   m_Name: '[FishingZone Services]'
   m_TagString: Untagged
@@ -355,6 +356,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a100000000000000000000000000002e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: FishingZone::FishingZone.Fishing.CrewCatchLog
+--- !u!114 &519420023
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 519420010}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 15ca5412e13556445baa7c4e8b716e15, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FishingZone::FishingZone.World.WorldClockSpawner
+  _clockPrefab: {fileID: 5706686193431599253, guid: 7d3800b7d8bf37842b7ca097b126f2c0, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using FishingZone.Core;
 using FishingZone.Player;
 using FishingZone.Roles;
+using FishingZone.World;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -151,15 +152,16 @@ namespace FishingZone.Fishing
         private string _callCoolingText = "They will not come up again yet";
 
         /// <summary>
-        /// The three things the light can be doing, appended to whatever else this post has to say.
+        /// What the light is doing in each part of the day, appended to whatever else this post has
+        /// to say: day, dusk and night below, dawn after them.
         ///
-        /// A fact about the trip rather than about the water below, which is why it is said over
-        /// open sea as well: a crew hunting for a buoy with the light going is exactly the crew with
-        /// a decision to make.
+        /// A fact about the world rather than about the water below, which is why it is said over
+        /// open sea as well. Nothing ends when the light goes; it is said because what lives in the
+        /// water will one day depend on it.
         ///
-        /// Leave any of these empty to silence that state. Emptying the first is the obvious edit —
-        /// a lookout need not keep announcing that everything is fine — but it is left saying
-        /// something by default so a crew can see the day is running at all.
+        /// Leave any of these empty to silence that part of the day. Emptying the first is the
+        /// obvious edit — a lookout need not keep announcing that everything is fine — but it is
+        /// left saying something by default so a crew can see the day is running at all.
         /// </summary>
         [SerializeField]
         private string _lightGoodText = "The light is good";
@@ -169,6 +171,9 @@ namespace FishingZone.Fishing
 
         [SerializeField]
         private string _lightGoneText = "The light has gone";
+
+        [SerializeField]
+        private string _lightDawnText = "The light is coming up";
 
         /// <summary>What this post last said, so the boat moving is noticed once rather than tested against.</summary>
         private FishingGround _lastGround;
@@ -185,10 +190,13 @@ namespace FishingZone.Fishing
         private bool _lastCallReady;
 
         /// <summary>
-        /// Tracked with the rest, because the light goes while a player stands perfectly still
-        /// looking at this post — which is the moment the warning is worth anything at all.
+        /// Tracked with the rest, because the light changes while a player stands perfectly still
+        /// looking at this post. The band as a number, or NoLight when there is no clock.
         /// </summary>
-        private ExpeditionPhase _lastLight;
+        private int _lastLight = NoLight;
+
+        /// <summary>No clock, so nothing to say about the light.</summary>
+        private const int NoLight = -1;
 
         /// <summary>
         /// Tracked with the rest, because a ground tires while somebody is standing still watching
@@ -240,7 +248,7 @@ namespace FishingZone.Fishing
             bool callReady = water != null && water.IsCallReady;
             WaterStock stock = water != null ? water.Stock : WaterStock.Fresh;
             CatchCondition condition = water != null ? water.Condition : CatchCondition.Ordinary;
-            ExpeditionPhase light = CurrentLight();
+            int light = CurrentLight();
 
             if (ReferenceEquals(ground, _lastGround)
                 && ReferenceEquals(water, _lastWater)
@@ -358,30 +366,31 @@ namespace FishingZone.Fishing
         /// What the light is doing, said last because it is the only clause here that is not about
         /// the water below.
         ///
-        /// Appended to every report, including the one over open sea. A crew crossing between
-        /// grounds with the light going is precisely the crew who need telling, and a post that went
-        /// quiet about the day the moment the boat left a ground would go quiet exactly when it
-        /// mattered most.
+        /// Appended to every report, including the one over open sea, so the crew can tell the time
+        /// wherever they are. Read from this peer's own clock: it decides only what is said here.
         ///
-        /// Silent when there is no day to report — a scene nobody has given a window to still reads
-        /// correctly, and says nothing rather than guessing.
+        /// Silent when there is no clock — a session that has none still reads correctly, and says
+        /// nothing rather than guessing.
         /// </summary>
         private string DescribeLight()
         {
-            ExpeditionWindow window = ExpeditionWindow.Current;
-            if (window == null)
+            WorldClock clock = WorldClock.Current;
+            if (clock == null || !clock.IsSpawned)
             {
                 return string.Empty;
             }
 
             string text;
-            switch (window.Phase)
+            switch (clock.Band)
             {
-                case ExpeditionPhase.Closed:
+                case TimeOfDayBand.Night:
                     text = _lightGoneText;
                     break;
-                case ExpeditionPhase.Fading:
+                case TimeOfDayBand.Dusk:
                     text = _lightFadingText;
+                    break;
+                case TimeOfDayBand.Dawn:
+                    text = _lightDawnText;
                     break;
                 default:
                     text = _lightGoodText;
@@ -392,17 +401,14 @@ namespace FishingZone.Fishing
         }
 
         /// <summary>
-        /// The day's state for the purpose of noticing it change, with no day reading as Open.
-        ///
-        /// A steady value rather than a third case, because this is only ever compared with the last
-        /// one: a scene with no window never changes, so it never asks for a re-read, which is
-        /// exactly right for a post that has nothing to say about the day.
+        /// The band for the purpose of noticing it change, or NoLight with no clock. A session with
+        /// no clock never changes, so it never asks for a re-read.
         /// </summary>
-        private static ExpeditionPhase CurrentLight()
+        private static int CurrentLight()
         {
-            ExpeditionWindow window = ExpeditionWindow.Current;
+            WorldClock clock = WorldClock.Current;
 
-            return window != null ? window.Phase : ExpeditionPhase.Open;
+            return clock != null && clock.IsSpawned ? (int)clock.Band : NoLight;
         }
 
         /// <summary>
