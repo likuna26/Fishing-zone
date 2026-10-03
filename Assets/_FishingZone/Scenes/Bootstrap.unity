@@ -203,6 +203,7 @@ MonoBehaviour:
   _gameFlow: {fileID: 519420012}
   _gameInput: {fileID: 519420013}
   _sessionManager: {fileID: 519420020}
+  _fishCatalog: {fileID: 11400000, guid: 9fe972d620898e142accbb927d01ace1, type: 2}
 --- !u!114 &519420015
 MonoBehaviour:
   m_ObjectHideFlags: 0

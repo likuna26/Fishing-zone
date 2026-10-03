@@ -1,4 +1,5 @@
 using FishingZone.Core.Input;
+using FishingZone.Fishing;
 using FishingZone.Networking;
 using UnityEngine;
 
@@ -23,6 +24,13 @@ namespace FishingZone.Core
         /// </summary>
         [SerializeField]
         private SessionManager _sessionManager;
+
+        /// <summary>
+        /// Every fish there is, by id. Registered here so every peer names catches against the same
+        /// list; without it nothing can be named, and so nothing can be chosen.
+        /// </summary>
+        [SerializeField]
+        private FishCatalog _fishCatalog;
 
         /// <summary>Guards against a second Bootstrap scene load creating a duplicate set of services.</summary>
         private static bool _hasInitialized;
@@ -67,6 +75,16 @@ namespace FishingZone.Core
                 ServiceRegistry.Register(_sessionManager);
             }
 
+            if (_fishCatalog != null)
+            {
+                _fishCatalog.Initialize();
+                ServiceRegistry.Register(_fishCatalog);
+            }
+            else
+            {
+                GameLog.Error(LogCategory.Boot, "Bootstrap has no Fish Catalog assigned, so no fish can be chosen or named.");
+            }
+
             GameLog.Info(LogCategory.Boot, "Persistent services initialized.");
         }
 
@@ -100,6 +118,7 @@ namespace FishingZone.Core
             ServiceRegistry.Unregister<GameFlowManager>();
             ServiceRegistry.Unregister<GameInput>();
             ServiceRegistry.Unregister<SessionManager>();
+            ServiceRegistry.Unregister<FishCatalog>();
             _hasInitialized = false;
         }
     }

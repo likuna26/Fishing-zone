@@ -54,37 +54,29 @@ namespace FishingZone.Fishing
         private float _radius = 30f;
 
         /// <summary>
-        /// What lives here. Habitat and nothing else: a cod ground and a mackerel ground are two
-        /// places, not two prizes.
+        /// What lives here, and when and how often: the spawn tables this water is fished from.
         ///
-        /// There is no weighting, no tier, no chance and no worth anywhere in this. Whatever is
-        /// listed is caught evenly, exactly as a station's own list already is — the only thing that
-        /// changes by sailing somewhere else is which fish are in the water, never how likely or how
-        /// good they are.
+        /// Several are allowed so a ground can share a table with its neighbours and keep one of its
+        /// own, which is how two grounds in the same region come to differ. The rules — weights,
+        /// hours, regions — live in the tables, never here, so this stays a description of a place.
         ///
-        /// Left empty on purpose is a supported arrangement rather than a mistake: a ground with
-        /// nothing listed is fished from the station's own list, which is how every ground behaved
-        /// before there was such a thing as habitat.
+        /// Left empty on purpose is a supported arrangement rather than a mistake: a ground with no
+        /// tables is fished from the station's own list, which is how every ground behaved before
+        /// there was such a thing as habitat. A ground WITH tables that rule everything out at this
+        /// hour is different — that is water where nothing is feeding, and nothing bites.
         /// </summary>
         [SerializeField]
-        private FishDefinition[] _fishPool;
+        private FishSpawnTable[] _spawnTables;
 
         public string DisplayName => _displayName;
 
         public float Radius => _radius;
 
         /// <summary>
-        /// What may be caught here, for reading only.
-        ///
-        /// Read-only rather than the array itself, so nothing can write into a scene object's
-        /// configuration through it. An array already satisfies this, so handing one out costs no
-        /// conversion and allocates nothing.
-        ///
-        /// This describes the place. Choosing from it belongs to whatever is doing the fishing, and
-        /// lives where that choosing already lived rather than being moved here and then needed in
-        /// both places.
+        /// The tables this ground is fished from, for reading only. Choosing from them belongs to
+        /// <see cref="CatchSelector"/>, never to the place.
         /// </summary>
-        public IReadOnlyList<FishDefinition> FishPool => _fishPool;
+        public IReadOnlyList<FishSpawnTable> SpawnTables => _spawnTables;
 
         /// <summary>
         /// The region this ground belongs to: whichever region its centre lies in, or null if it lies
@@ -171,46 +163,6 @@ namespace FishingZone.Fishing
                 if (ground != null && ground.Contains(worldPosition))
                 {
                     return ground;
-                }
-            }
-
-            return null;
-        }
-
-        /// <summary>
-        /// The fish with this id, wherever in these waters it lives, or null if no ground holds one.
-        ///
-        /// Needed because a catch travels as a number and every peer has to turn it back into a
-        /// name. The server chose it out of one ground's list, but which ground that was is
-        /// server-side and deliberately never sent, so a client cannot look in the same place. It
-        /// looks everywhere instead, which comes to the same answer: ids identify a fish, so no two
-        /// grounds can disagree about what one means.
-        ///
-        /// Every peer loads the same scene and therefore the same grounds and the same lists, so
-        /// this resolves identically on all of them. Asked only when a catch is being described.
-        /// </summary>
-        public static FishDefinition FindFishById(int id)
-        {
-            if (id == FishDefinition.NoFish)
-            {
-                return null;
-            }
-
-            for (int i = 0; i < Registered.Count; i++)
-            {
-                FishingGround ground = Registered[i];
-                if (ground == null || ground._fishPool == null)
-                {
-                    continue;
-                }
-
-                for (int f = 0; f < ground._fishPool.Length; f++)
-                {
-                    FishDefinition fish = ground._fishPool[f];
-                    if (fish != null && fish.Id == id)
-                    {
-                        return fish;
-                    }
                 }
             }
 

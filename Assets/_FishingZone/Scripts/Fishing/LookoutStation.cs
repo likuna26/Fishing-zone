@@ -494,20 +494,22 @@ namespace FishingZone.Fishing
         }
 
         /// <summary>
-        /// What lives here, said as a phrase.
+        /// What is running here now, said as a phrase.
         ///
-        /// Read straight off the ground rather than kept anywhere: habitat is configured in one
-        /// place and this is a window onto it, exactly as the water is. A second copy would be a
-        /// second thing to keep in step and a second thing to be wrong.
+        /// Read straight off the ground's spawn tables with the same rules the server chooses by, for
+        /// where the boat is and the hour on this peer's clock: a fish that only comes up at night is
+        /// named at night. Entries marked as not for the lookout are left out — they still bite, the
+        /// crew just has to find them for themselves. This decides only what is said; what is caught
+        /// is decided on the server.
         ///
-        /// Never the station's list, even though that is what a ground advertising nothing is
-        /// actually fished from. This post cannot know which of two stations a Fisher is standing
-        /// at, and reporting a list the fish might not come from would be worse than admitting it
-        /// does not know.
+        /// Never the station's list, even though that is what a ground with no tables is actually
+        /// fished from. This post cannot know which of two stations a Fisher is standing at, and
+        /// reporting a list the fish might not come from would be worse than admitting it does not
+        /// know.
         /// </summary>
         private string DescribeHabitat(FishingGround ground)
         {
-            string species = JoinSpecies(ground.FishPool);
+            string species = JoinSpecies(CollectAnnounceableSpecies(ground));
 
             if (species == null || string.IsNullOrEmpty(_habitatText))
             {
@@ -516,6 +518,42 @@ namespace FishingZone.Fishing
 
             return _habitatText.Replace("{0}", species);
         }
+
+        /// <summary>
+        /// The distinct fish the lookout may name at this ground now, in table order. Reuses one list
+        /// rather than allocating, since this runs whenever the report is re-read.
+        /// </summary>
+        private IReadOnlyList<FishDefinition> CollectAnnounceableSpecies(FishingGround ground)
+        {
+            _announceableSpecies.Clear();
+
+            if (!ServiceRegistry.TryGet(out FishCatalog catalog))
+            {
+                return _announceableSpecies;
+            }
+
+            WorldClock clock = WorldClock.Current;
+            bool hasTime = clock != null && clock.IsSpawned;
+            int regionId = _regionTracker != null ? _regionTracker.CurrentRegionId : RegionDefinition.NoRegion;
+            var context = new CatchContext(regionId, hasTime, hasTime ? clock.Band : TimeOfDayBand.Day);
+
+            CatchSelector.CollectEligible(ground.SpawnTables, context, catalog, true, _eligibleEntries);
+
+            for (int i = 0; i < _eligibleEntries.Count; i++)
+            {
+                FishDefinition fish = _eligibleEntries[i].Fish;
+                if (!_announceableSpecies.Contains(fish))
+                {
+                    _announceableSpecies.Add(fish);
+                }
+            }
+
+            return _announceableSpecies;
+        }
+
+        private readonly List<FishSpawnEntry> _eligibleEntries = new List<FishSpawnEntry>();
+
+        private readonly List<FishDefinition> _announceableSpecies = new List<FishDefinition>();
 
         /// <summary>
         /// The usable fish of a list, in the order somebody typed them, as English rather than as a

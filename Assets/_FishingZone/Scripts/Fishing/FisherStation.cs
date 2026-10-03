@@ -3,6 +3,7 @@ using FishingZone.Core;
 using FishingZone.Core.Input;
 using FishingZone.Player;
 using FishingZone.Roles;
+using FishingZone.World;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -132,9 +133,12 @@ namespace FishingZone.Fishing
         private string _caughtCountedText = "You landed a {0} — {1} kg!  ({2} this session)";
 
         /// <summary>
-        /// What may be caught here, chosen from at random by the server. Empty is a configuration
-        /// mistake rather than a kind of fishing: the loop still runs, and says loudly that it had
-        /// nothing to choose from.
+        /// What may be caught when the water below has no spawn tables of its own, chosen from evenly
+        /// by the server. The fail-open path for grounds and scenes nobody has set up, kept so that a
+        /// missing table never stops a crew fishing; a ground with tables never reaches it.
+        ///
+        /// Empty is a configuration mistake rather than a kind of fishing: the loop still runs, and
+        /// says loudly that it had nothing to choose from.
         /// </summary>
         [SerializeField]
         private FishDefinition[] _fishPool;
@@ -360,6 +364,38 @@ namespace FishingZone.Fishing
         /// fishes from its own list as it always did.
         /// </summary>
         private FishingGround _castGround;
+
+        /// <summary>
+        /// Which region the hook went into, by id, captured with the ground and for the same reason:
+        /// a cast belongs to where it began. NoRegion for open sea or a scene without regions.
+        /// Server-side and never sent.
+        /// </summary>
+        private int _castRegionId = RegionDefinition.NoRegion;
+
+        /// <summary>
+        /// The fish on the line, from the moment it bites to the moment it comes aboard.
+        ///
+        /// Chosen once, when the bite happens, and kept through the hook and the fight unchanged, so
+        /// something real is on the line for as long as there is a line — which is what anything that
+        /// depends on the fish while it is still in the water will need. A bite that is missed takes
+        /// its fish with it; the next bite draws again.
+        ///
+        /// Server-only, and deliberately never replicated: nobody aboard learns what it is until it is
+        /// landed, which is when the existing caught variables say so.
+        /// </summary>
+        private FishDefinition _biteFish;
+
+        /// <summary>Its weight in tenths, rolled at the bite with it and fixed from then on.</summary>
+        private int _biteWeightTenths = NoWeight;
+
+        /// <summary>
+        /// Whether this cast has already said that nothing is biting. Water where nothing is feeding
+        /// re-arms its wait quietly, and saying so every time would fill the log with one fact.
+        /// </summary>
+        private bool _hasReportedDeadWater;
+
+        /// <summary>So a missing fish catalog is said once rather than at every bite.</summary>
+        private bool _hasWarnedMissingCatalog;
 
         private bool IsLocalOccupant =>
             NetworkManager.Singleton != null && _occupantClientId.Value == NetworkManager.Singleton.LocalClientId;
@@ -603,21 +639,33 @@ namespace FishingZone.Fishing
 
             if (phase == FishingPhase.Waiting)
             {
+                // Something has to be there before anything can bite. If nothing in this water is
+                // eligible now, nothing bites: the wait is simply drawn again, with no phase change,
+                // so no peer is shown a bite that is not real and nothing is sent.
+                if (!TryChooseBiteOnServer(out FishDefinition fish, out int weightTenths))
+                {
+                    _phaseCountdown = DrawBiteDelayOnServer();
+                    return;
+                }
+
                 SetPhaseOnServer(FishingPhase.Bite);
-                GameLog.Info(LogCategory.Fish, $"Something bit at '{name}' for client {occupant}.");
+
+                // Set after the phase, because entering a phase is what clears the last one's fish.
+                _biteFish = fish;
+                _biteWeightTenths = weightTenths;
+
+                GameLog.Info(LogCategory.Fish, fish == null
+                    ? $"Something bit at '{name}' for client {occupant}."
+                    : $"Something bit at '{name}' for client {occupant} (server only: {fish.DisplayName}, {FormatWeight(weightTenths)} kg).");
                 return;
             }
 
             if (phase == FishingPhase.Hooked)
             {
-                // Chosen before the phase is set, and applied after, because entering a phase clears
-                // the fish: the catch is the one moment that puts one back.
-                FishDefinition caught = ChooseCatchOnServer();
-
-                // Rolled here, once, and never again: the phase carries the result for its whole
-                // moment, and reading it cannot change it. A prompt refreshing, a crewmate looking
-                // over, or a peer receiving the value late all read the same number.
-                int weightTenths = RollCatchWeightOnServer(caught);
+                // The fish that bit, exactly as it was chosen then: nothing is drawn or rolled again
+                // here. Read before the phase is set, because entering a phase clears the bite.
+                FishDefinition caught = _biteFish;
+                int weightTenths = caught != null ? _biteWeightTenths : NoWeight;
 
                 SetPhaseOnServer(FishingPhase.Caught);
                 _caughtFishId.Value = caught != null ? caught.Id : FishDefinition.NoFish;
@@ -646,8 +694,11 @@ namespace FishingZone.Fishing
             // The window ran out with no answer. Back to waiting rather than to nothing: the line is
             // still in the water, and a missed bite costs the time it takes for another to come
             // rather than the cast itself.
+            FishDefinition lost = _biteFish;
             SetPhaseOnServer(FishingPhase.Waiting);
-            GameLog.Info(LogCategory.Fish, $"The bite at '{name}' got away from client {occupant}.");
+            GameLog.Info(LogCategory.Fish, lost == null
+                ? $"The bite at '{name}' got away from client {occupant}."
+                : $"The bite at '{name}' got away from client {occupant} (server only: the {lost.DisplayName} is gone).");
         }
 
         /// <summary>
@@ -914,6 +965,9 @@ namespace FishingZone.Fishing
             // lets through. That reads as no habitat and falls back to this station's own list.
             _castGround = FishingGround.Find(transform.position);
 
+            RegionDefinition castRegion = RegionVolume.FindRegion(transform.position);
+            _castRegionId = castRegion != null ? castRegion.Id : RegionDefinition.NoRegion;
+
             GameLog.Info(LogCategory.Fish, $"Client {senderId} started fishing at '{name}'.");
         }
 
@@ -1110,6 +1164,15 @@ namespace FishingZone.Fishing
             _caughtWeightTenths.Value = NoWeight;
             _caughtSessionCount.Value = 0;
 
+            // The fish on the line survives exactly one transition: from the bite to the hook. Every
+            // other change ends it — a missed bite back to waiting, a release, a disconnect, or the
+            // landing, which reads it before coming here. A new bite sets its own straight after.
+            if (phase != FishingPhase.Hooked)
+            {
+                _biteFish = null;
+                _biteWeightTenths = NoWeight;
+            }
+
             // Idle alone, and emphatically not every change. A cast survives its own phases, and a
             // bite that got away puts the station back to Waiting without the cast having ended —
             // clearing on every transition would quietly hand that Fisher a different habitat for
@@ -1118,6 +1181,8 @@ namespace FishingZone.Fishing
             if (phase == FishingPhase.Idle)
             {
                 _castGround = null;
+                _castRegionId = RegionDefinition.NoRegion;
+                _hasReportedDeadWater = false;
             }
         }
 
@@ -1226,46 +1291,108 @@ namespace FishingZone.Fishing
         }
 
         /// <summary>
-        /// Picks what came up, from whatever the water this cast went into holds.
+        /// Decides what has just bitten, and how heavy it is, or that nothing is there to bite.
         ///
         /// Server only, and the client is never asked: there is no message that carries a fish, so
-        /// there is nothing to claim and no field to claim it in. Evenly among the usable entries,
-        /// because weighting them is a question about rarity and rarity is a system nobody has yet —
-        /// and habitat is not that question. A ground holding one fish and a ground holding three
-        /// are two places, not two odds.
+        /// there is nothing to claim and no field to claim it in. Called once per bite that happens;
+        /// the result is held until the fish is landed or lost, and never drawn again in between.
         ///
-        /// Nothing usable anywhere returns nothing and says so. The catch still happens and the loop
-        /// still runs — a Fisher is not stranded by a mistake in an Inspector — but no fish is
-        /// invented to cover it up.
+        /// Where comes from the cast — the ground and region the hook went into. When comes from the
+        /// clock now, at the bite, because what bites is whatever is in the water at that moment.
+        ///
+        /// Returns false only for water whose tables rule out everything at this hour: nothing is
+        /// feeding, so no bite happens at all. A ground with no tables falls back to the station's own
+        /// list as it always did, and a station with nothing usable still bites and lands an unnamed
+        /// catch, saying loudly why — the loop is never left stranded by a mistake in an Inspector.
         /// </summary>
-        private FishDefinition ChooseCatchOnServer()
+        private bool TryChooseBiteOnServer(out FishDefinition fish, out int weightTenths)
         {
-            IReadOnlyList<FishDefinition> pool = ResolveCastFishPool();
+            fish = null;
+            weightTenths = NoWeight;
 
-            int usable = CountUsableFish(pool);
+            FishCatalog catalog = ResolveCatalog();
+            IReadOnlyList<FishSpawnTable> tables = _castGround != null ? _castGround.SpawnTables : null;
+
+            if (CatchSelector.HasEntries(tables))
+            {
+                FishSpawnEntry entry = CatchSelector.Choose(tables, BuildCatchContextOnServer(), catalog, Random.value);
+                if (entry == null)
+                {
+                    ReportDeadWater();
+                    return false;
+                }
+
+                fish = entry.Fish;
+            }
+            else
+            {
+                fish = ChooseFromStationPoolOnServer(catalog);
+            }
+
+            weightTenths = RollCatchWeightOnServer(fish);
+            return true;
+        }
+
+        /// <summary>
+        /// The circumstances of this bite: the region the hook went into, and the time of day on the
+        /// server's own clock. A scene with no clock leaves time unrestricted.
+        /// </summary>
+        private CatchContext BuildCatchContextOnServer()
+        {
+            WorldClock clock = WorldClock.Current;
+            bool hasTime = clock != null && clock.IsSpawned;
+
+            return new CatchContext(_castRegionId, hasTime, hasTime ? clock.Band : TimeOfDayBand.Day);
+        }
+
+        /// <summary>
+        /// Said once per cast, at Info: nothing in this water is eligible at this hour, so the line
+        /// waits on. Not an error — it is a fact about the sea — and not repeated at every quiet
+        /// re-arm of the wait.
+        /// </summary>
+        private void ReportDeadWater()
+        {
+            if (_hasReportedDeadWater)
+            {
+                return;
+            }
+
+            _hasReportedDeadWater = true;
+
+            string where = _castGround != null ? $"'{_castGround.DisplayName}'" : "this water";
+            GameLog.Info(LogCategory.Fish,
+                $"Nothing is feeding at {where} for '{name}' right now; the line waits without a bite.");
+        }
+
+        /// <summary>
+        /// The fail-open path: evenly among the station's own fish, for water nobody gave tables to.
+        /// Only fish the catalog can name are considered, so every peer can still say what came up.
+        /// Walked rather than collected, so choosing allocates nothing.
+        /// </summary>
+        private FishDefinition ChooseFromStationPoolOnServer(FishCatalog catalog)
+        {
+            int usable = CountUsableFish(_fishPool, catalog);
 
             if (usable == 0)
             {
                 GameLog.Error(LogCategory.Fish,
-                    $"'{name}' landed a catch but has no usable fish configured. Add Fish Definitions " +
-                    "to its Fish Pool, or to the Fishing Ground it is fishing, each with a non-zero " +
-                    "Id and a Display Name.");
+                    $"'{name}' has a bite but no usable fish configured. Give its Fishing Ground a spawn " +
+                    "table, or add catalogued Fish Definitions to the station's Fish Pool.");
                 return null;
             }
 
-            // Walked rather than collected, so choosing a fish allocates nothing.
             int pick = Random.Range(0, usable);
 
-            for (int i = 0; i < pool.Count; i++)
+            for (int i = 0; i < _fishPool.Length; i++)
             {
-                if (pool[i] == null || !pool[i].IsValid)
+                if (!IsUsableFish(_fishPool[i], catalog))
                 {
                     continue;
                 }
 
                 if (pick == 0)
                 {
-                    return pool[i];
+                    return _fishPool[i];
                 }
 
                 pick--;
@@ -1274,37 +1401,7 @@ namespace FishingZone.Fishing
             return null;
         }
 
-        /// <summary>
-        /// Which list this cast draws from: the habitat it was put into, or this station's own.
-        ///
-        /// The ground is the one captured when the cast was accepted, never one looked up now. Where
-        /// the boat has since sailed does not change what the hook went into.
-        ///
-        /// Falling back is a supported arrangement and not a fault, which is why nothing is logged
-        /// for it. A ground given no fish of its own is a ground that has not been told it is
-        /// special, and every ground was like that until habitat existed; the station's own list is
-        /// what it fished from then and what it fishes from now. That is also what keeps a scene
-        /// nobody has migrated playing exactly as it did.
-        ///
-        /// Compared with != null rather than ReferenceEquals, so a ground destroyed underneath this
-        /// reference reads as absent and falls back rather than throwing.
-        /// </summary>
-        private IReadOnlyList<FishDefinition> ResolveCastFishPool()
-        {
-            if (_castGround != null && CountUsableFish(_castGround.FishPool) > 0)
-            {
-                return _castGround.FishPool;
-            }
-
-            return _fishPool;
-        }
-
-        /// <summary>
-        /// How many entries in a list could actually be caught. Null lists, empty slots and
-        /// definitions nobody filled in all count for nothing, so a half-configured ground falls
-        /// back on the same test a half-configured station already faced.
-        /// </summary>
-        private static int CountUsableFish(IReadOnlyList<FishDefinition> pool)
+        private static int CountUsableFish(FishDefinition[] pool, FishCatalog catalog)
         {
             if (pool == null)
             {
@@ -1313,15 +1410,42 @@ namespace FishingZone.Fishing
 
             int usable = 0;
 
-            for (int i = 0; i < pool.Count; i++)
+            for (int i = 0; i < pool.Length; i++)
             {
-                if (pool[i] != null && pool[i].IsValid)
+                if (IsUsableFish(pool[i], catalog))
                 {
                     usable++;
                 }
             }
 
             return usable;
+        }
+
+        private static bool IsUsableFish(FishDefinition fish, FishCatalog catalog)
+        {
+            return fish != null && fish.IsValid && catalog != null && catalog.Resolves(fish);
+        }
+
+        /// <summary>
+        /// The catalog every peer names fish with. Missing it means nothing can be named — and so,
+        /// on the server, nothing can be chosen — which is said once rather than at every bite.
+        /// </summary>
+        private FishCatalog ResolveCatalog()
+        {
+            if (ServiceRegistry.TryGet(out FishCatalog catalog))
+            {
+                return catalog;
+            }
+
+            if (!_hasWarnedMissingCatalog)
+            {
+                _hasWarnedMissingCatalog = true;
+                GameLog.Error(LogCategory.Fish,
+                    $"'{name}' found no Fish Catalog, so no fish can be chosen or named. " +
+                    "Assign the Fish Catalog on Bootstrap in the Bootstrap scene.");
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -1469,35 +1593,23 @@ namespace FishingZone.Fishing
         }
 
         /// <summary>
-        /// Turns the number back into the fish.
+        /// Turns the number back into the fish, through the catalog.
         ///
-        /// This station's own list first, because that is where a catch came from before habitat
-        /// existed and still does wherever a ground was given no fish of its own. Then the grounds,
-        /// because a fish drawn from one need not appear on any station — and a catch that could not
-        /// be named would lose its weight along with its name, which is most of what the moment is.
-        ///
-        /// Runs on every peer and must give them all the same answer. It does: stations and grounds
-        /// both come with the scene, and an id means one fish wherever it is looked up.
+        /// The catalog rather than any list in the scene, because a fish can come from a table no
+        /// station or ground on this peer happens to hold. Every peer registers the same catalog, and
+        /// the server only ever chooses fish the catalog can name, so every peer gives the same answer.
+        /// Without a catalog the catch is described without its name rather than guessed at.
         /// </summary>
-        private FishDefinition FindFish(int id)
+        private static FishDefinition FindFish(int id)
         {
             if (id == FishDefinition.NoFish)
             {
                 return null;
             }
 
-            if (_fishPool != null)
-            {
-                for (int i = 0; i < _fishPool.Length; i++)
-                {
-                    if (_fishPool[i] != null && _fishPool[i].Id == id)
-                    {
-                        return _fishPool[i];
-                    }
-                }
-            }
-
-            return FishingGround.FindFishById(id);
+            return ServiceRegistry.TryGet(out FishCatalog catalog) && catalog.TryGet(id, out FishDefinition fish)
+                ? fish
+                : null;
         }
 
         /// <summary>Drawn afresh, so no two fights run to the same rhythm.</summary>

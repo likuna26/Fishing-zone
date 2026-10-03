@@ -538,8 +538,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: FishingZone::FishingZone.Fishing.FishingGround
   _displayName: Northern Shallows
   _radius: 20
-  _fishPool:
-  - {fileID: 11400000, guid: fdffa0a43e7a2ef44a7fd46e3557f69a, type: 2}
+  _spawnTables:
+  - {fileID: 11400000, guid: 67b96bc079fcc294caf5977178396c0f, type: 2}
 --- !u!4 &470178025
 Transform:
   m_ObjectHideFlags: 0
@@ -1229,8 +1229,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: FishingZone::FishingZone.Fishing.FishingGround
   _displayName: Reef
   _radius: 20
-  _fishPool:
-  - {fileID: 11400000, guid: e56412622980aea48a546291654b4201, type: 2}
+  _spawnTables:
+  - {fileID: 11400000, guid: b94ddaba1aac8794fad5d3dd2e4bed3c, type: 2}
 --- !u!4 &1423556787
 Transform:
   m_ObjectHideFlags: 0
