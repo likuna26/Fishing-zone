@@ -67,6 +67,16 @@ namespace FishingZone.Boat
         private InputAction _steerAction;
         private InputAction _brakeAction;
 
+        /// <summary>Steps per unit of an axis on the wire, so -1..1 travels as -100..100.</summary>
+        private const float AxisQuantization = 100f;
+
+        // What this machine last told the server, so unchanged intent is not sent again.
+        private bool _hasSentInput;
+        private int _lastInputSendTick = -1;
+        private sbyte _sentThrottle;
+        private sbyte _sentSteer;
+        private bool _sentBraking;
+
         private bool IsLocalOccupant =>
             NetworkManager.Singleton != null && _occupantClientId.Value == NetworkManager.Singleton.LocalClientId;
 
@@ -126,8 +136,67 @@ namespace FishingZone.Boat
             }
             else
             {
-                SubmitInputServerRpc(throttle, steer, isBraking);
+                SendInputIfChanged(throttle, steer, isBraking);
             }
+        }
+
+        /// <summary>
+        /// Tells the server what the driver wants only when it differs from what it was last told,
+        /// and at most once per network tick.
+        ///
+        /// The hull keeps whatever intent it was last given, so repeating an unchanged one every
+        /// physics step bought nothing but traffic. Keyboard steering is all or nothing, so a turn
+        /// costs a message when it starts and one when it ends; an analogue stick moving the whole
+        /// time is held to the tick rate, which is as often as the boat's position is sent back.
+        ///
+        /// A change that lands inside a tick already used is not lost: what was sent stays
+        /// different from what is held, so it goes on the next tick. Reliable delivery is what
+        /// makes sending changes alone safe, which is why this is not an unreliable message.
+        ///
+        /// Whole hundredths, not floats. Every axis this reads is clamped to -1..1 anyway, and
+        /// quantizing first is what stops an analogue stick's sensor noise counting as a change.
+        /// </summary>
+        private void SendInputIfChanged(float throttle, float steer, bool isBraking)
+        {
+            sbyte quantizedThrottle = QuantizeAxis(throttle);
+            sbyte quantizedSteer = QuantizeAxis(steer);
+
+            if (_hasSentInput
+                && quantizedThrottle == _sentThrottle
+                && quantizedSteer == _sentSteer
+                && isBraking == _sentBraking)
+            {
+                return;
+            }
+
+            int tick = NetworkManager.LocalTime.Tick;
+            if (_hasSentInput && tick == _lastInputSendTick)
+            {
+                return;
+            }
+
+            SubmitInputServerRpc(quantizedThrottle, quantizedSteer, isBraking);
+
+            _hasSentInput = true;
+            _lastInputSendTick = tick;
+            _sentThrottle = quantizedThrottle;
+            _sentSteer = quantizedSteer;
+            _sentBraking = isBraking;
+        }
+
+        /// <summary>
+        /// Forgets what the server was last told, so whoever takes the wheel next sends their first
+        /// intent at once instead of having it compared against somebody else's.
+        /// </summary>
+        private void ResetSentInput()
+        {
+            _hasSentInput = false;
+            _lastInputSendTick = -1;
+        }
+
+        private static sbyte QuantizeAxis(float value)
+        {
+            return (sbyte)Mathf.RoundToInt(Mathf.Clamp(value, -1f, 1f) * AxisQuantization);
         }
 
         public bool CanInteract(GameObject interactor)
@@ -228,7 +297,7 @@ namespace FishingZone.Boat
         }
 
         [ServerRpc(RequireOwnership = false)]
-        private void SubmitInputServerRpc(float throttle, float steer, bool isBraking, ServerRpcParams parameters = default)
+        private void SubmitInputServerRpc(sbyte throttle, sbyte steer, bool isBraking, ServerRpcParams parameters = default)
         {
             // Never trust a client merely because it can reach this RPC. The current replicated
             // occupant is the only client whose driving intent may reach the authoritative hull.
@@ -237,7 +306,8 @@ namespace FishingZone.Boat
                 return;
             }
 
-            _boatMovement.SetInput(throttle, steer, isBraking);
+            // SetInput clamps, so a value outside what QuantizeAxis can produce does no harm.
+            _boatMovement.SetInput(throttle / AxisQuantization, steer / AxisQuantization, isBraking);
         }
 
         private void ReleaseOnServer()
@@ -342,6 +412,7 @@ namespace FishingZone.Boat
 
             _localSeatedPlayer = seat;
             _localInteraction = interaction;
+            ResetSentInput();
 
             // Captured so that looking at another interactable cannot take priority over leaving.
             _localInteraction.CaptureFocus(this);
@@ -396,6 +467,7 @@ namespace FishingZone.Boat
             _throttleAction = null;
             _steerAction = null;
             _brakeAction = null;
+            ResetSentInput();
 
             if (_localInteraction != null)
             {

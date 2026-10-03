@@ -31,6 +31,210 @@ Transform:
   m_Children: []
   m_Father: {fileID: 2474291544220914369}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &890279278766381082
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5763805288382047442}
+  m_Layer: 9
+  m_Name: BoardingPoint_3
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &5763805288382047442
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 890279278766381082}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 1, y: 1.4, z: -2.45}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2474291544220914369}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1444934663129503237
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8670521011451071892}
+  - component: {fileID: 1651614851431911826}
+  - component: {fileID: 749884980601547294}
+  m_Layer: 7
+  m_Name: Departure_ReturnToPort
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8670521011451071892
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1444934663129503237}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2474291544220914369}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1651614851431911826
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1444934663129503237}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a100000000000000000000000000002f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FishingZone::FishingZone.Core.VoyageStation
+  ShowTopMostFoldoutHeaderGroup: 1
+  _destination: 3
+  _departText: 
+  _wrongRoleText: 
+  _dayOverText: 
+--- !u!65 &749884980601547294
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1444934663129503237}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 2, y: 2, z: 2}
+  m_Center: {x: 0, y: 0, z: 0}
+--- !u!1 &3004857530460238633
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4578008181916712076}
+  - component: {fileID: 1678661053688561838}
+  - component: {fileID: 7406073719559153351}
+  m_Layer: 7
+  m_Name: FisherStation_Right
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4578008181916712076
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3004857530460238633}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0.994, y: 0.826, z: -0.355}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2474291544220914369}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &1678661053688561838
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3004857530460238633}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 1, z: 1}
+  m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &7406073719559153351
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3004857530460238633}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a100000000000000000000000000002b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FishingZone::FishingZone.Fishing.FisherStation
+  ShowTopMostFoldoutHeaderGroup: 1
+  _fishText: Fish here
+  _occupiedText: Cast to fish, or leave the station
+  _offGroundsText: Nothing is feeding under us here
+  _windowClosedText: "The light has gone \u2014 no more casts today. Time to head
+    for port"
+  _stopFishText: "Waiting for a bite \u2014 release to stop, or leave the station"
+  _busyText: Station in use
+  _busyFishingText: Someone has a line out here
+  _biteText: Something is biting! Release to stop, or leave the station
+  _busyBiteText: Someone has a bite here
+  _hookedText: Hooked! Release to stop, or leave the station
+  _busyHookedText: Someone has one on the line
+  _resistText: "It's running \u2014 let go of the reel!"
+  _caughtText: You landed a catch!
+  _busyCaughtText: Someone landed a catch
+  _caughtNamedText: You landed a {0}!
+  _busyCaughtNamedText: Someone landed a {0}
+  _caughtWeighedText: "You landed a {0} \u2014 {1} kg!"
+  _busyCaughtWeighedText: "Someone landed a {0} \u2014 {1} kg"
+  _caughtCountedText: "You landed a {0} \u2014 {1} kg! ({2} this session)"
+  _fishPool:
+  - {fileID: 11400000, guid: fdffa0a43e7a2ef44a7fd46e3557f69a, type: 2}
+  - {fileID: 11400000, guid: eec76895d2f7b5841af539218992649d, type: 2}
+  - {fileID: 11400000, guid: e56412622980aea48a546291654b4201, type: 2}
+  _minBiteDelay: 3
+  _maxBiteDelay: 10
+  _biteWindow: 2
+  _reelDuration: 4
+  _minResistDelay: 1.5
+  _maxResistDelay: 3
+  _catchDisplaySeconds: 2
+  _wrongRoleText: Only the Fisher may fish here
+  _castAction: {fileID: 2883452151877530926, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
+  _stopFishingAction: {fileID: -8590259650862159448, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
+  _reelAction: {fileID: 1488067851943573913, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
 --- !u!1 &3379327417033693312
 GameObject:
   m_ObjectHideFlags: 0
@@ -105,6 +309,7 @@ MonoBehaviour:
   _enterText: Take the wheel
   _exitText: Leave the wheel
   _busyText: Wheel in use
+  _wrongRoleText: Only the Navigator may steer
 --- !u!1 &4184310325885979719
 GameObject:
   m_ObjectHideFlags: 0
@@ -347,6 +552,253 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &6320634972791053362
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 899006941305204791}
+  - component: {fileID: 2846519130629257311}
+  - component: {fileID: 1794702769683317067}
+  m_Layer: 7
+  m_Name: FisherStation_Left
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &899006941305204791
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6320634972791053362}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0.893, y: 0.812, z: -0.494}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2474291544220914369}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &2846519130629257311
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6320634972791053362}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 1, z: 1}
+  m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &1794702769683317067
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6320634972791053362}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a100000000000000000000000000002b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FishingZone::FishingZone.Fishing.FisherStation
+  ShowTopMostFoldoutHeaderGroup: 1
+  _fishText: Fish here
+  _occupiedText: Cast to fish, or leave the station
+  _offGroundsText: Nothing is feeding under us here
+  _windowClosedText: "The light has gone \u2014 no more casts today. Time to head
+    for port"
+  _stopFishText: "Waiting for a bite \u2014 release to stop, or leave the station"
+  _busyText: Station in use
+  _busyFishingText: Someone has a line out here
+  _biteText: Something is biting! Release to stop, or leave the station
+  _busyBiteText: Someone has a bite here
+  _hookedText: Hooked! Release to stop, or leave the station
+  _busyHookedText: Someone has one on the line
+  _resistText: "It's running \u2014 let go of the reel!"
+  _caughtText: You landed a catch!
+  _busyCaughtText: Someone landed a catch
+  _caughtNamedText: You landed a {0}!
+  _busyCaughtNamedText: Someone landed a {0}
+  _caughtWeighedText: "You landed a {0} \u2014 {1} kg!"
+  _busyCaughtWeighedText: "Someone landed a {0} \u2014 {1} kg"
+  _caughtCountedText: "You landed a {0} \u2014 {1} kg! ({2} this session)"
+  _fishPool:
+  - {fileID: 11400000, guid: fdffa0a43e7a2ef44a7fd46e3557f69a, type: 2}
+  - {fileID: 11400000, guid: eec76895d2f7b5841af539218992649d, type: 2}
+  - {fileID: 11400000, guid: e56412622980aea48a546291654b4201, type: 2}
+  _minBiteDelay: 3
+  _maxBiteDelay: 10
+  _biteWindow: 2
+  _reelDuration: 4
+  _minResistDelay: 1.5
+  _maxResistDelay: 3
+  _catchDisplaySeconds: 2
+  _wrongRoleText: Only the Fisher may fish here
+  _castAction: {fileID: 2883452151877530926, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
+  _stopFishingAction: {fileID: -8590259650862159448, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
+  _reelAction: {fileID: 1488067851943573913, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
+--- !u!1 &6576839450077588948
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 395251475608662697}
+  - component: {fileID: 1021346972017727860}
+  - component: {fileID: 552129477695355827}
+  - component: {fileID: 5090794189760451022}
+  - component: {fileID: 2512926216274465503}
+  m_Layer: 7
+  m_Name: LookoutStation
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &395251475608662697
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6576839450077588948}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -0.12, y: 0.63399994, z: -2.26}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2474291544220914369}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!33 &1021346972017727860
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6576839450077588948}
+  m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!23 &552129477695355827
+MeshRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6576839450077588948}
+  m_Enabled: 1
+  m_CastShadows: 1
+  m_ReceiveShadows: 1
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 1
+  m_ReflectionProbeUsage: 1
+  m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 0
+  m_MaskInteraction: 0
+  m_AdditionalVertexStreams: {fileID: 0}
+--- !u!65 &5090794189760451022
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6576839450077588948}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 1, z: 1}
+  m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &2512926216274465503
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6576839450077588948}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1000000000000000000000000000032, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FishingZone::FishingZone.Fishing.LookoutStation
+  ShowTopMostFoldoutHeaderGroup: 1
+  _feedingText: "The water is alive \u2014 they're feeding"
+  _quietText: "The water is quiet \u2014 little is moving"
+  _openWaterText: "Open water \u2014 there is nothing below us here"
+  _unknownText: You cannot make out the water from here
+  _wrongRoleText: Only the Lookout can read the water
+  _habitatText: '{0} run here'
+  _unknownHabitatText: Hard to say what runs here
+  _stockFreshText: 
+  _stockWorkingText: The fish here are growing wary
+  _stockTiredText: These waters have been worked hard
+  _conditionOrdinaryText: 
+  _conditionHeavyText: The fish here are running big today
+  _conditionLeanText: The fish here are running small today
+  _reportSeparator: '. '
+  _callReadyText: Interact to call them up
+  _callCoolingText: They will not come up again yet
+  _lightGoodText: The light is good
+  _lightFadingText: The light is going
+  _lightGoneText: The light has gone
 --- !u!1 &6709971522165767784
 GameObject:
   m_ObjectHideFlags: 0
@@ -378,6 +830,68 @@ Transform:
   m_Children: []
   m_Father: {fileID: 2474291544220914369}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &7729331634554604881
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 6500967272127172075}
+  m_Layer: 9
+  m_Name: BoardingPoint_4
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &6500967272127172075
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7729331634554604881}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 1.4, z: 2.55}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2474291544220914369}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &8211807424063128828
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4183439305981984364}
+  m_Layer: 9
+  m_Name: BoardingPoint_2
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4183439305981984364
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8211807424063128828}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 1, y: 1.4, z: 2.05}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2474291544220914369}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &8218093952752353003
 GameObject:
   m_ObjectHideFlags: 0
@@ -394,7 +908,7 @@ GameObject:
   - component: {fileID: 6499003802721056028}
   - component: {fileID: 8774601646985055606}
   - component: {fileID: 1456299964730992533}
-  - component: {fileID: 8072850402786104417}
+  - component: {fileID: 6015752386856961085}
   m_Layer: 9
   m_Name: BoatRoot
   m_TagString: Untagged
@@ -421,6 +935,14 @@ Transform:
   - {fileID: 7617190946119073054}
   - {fileID: 2579035987865865659}
   - {fileID: 5019435151760393843}
+  - {fileID: 899006941305204791}
+  - {fileID: 4578008181916712076}
+  - {fileID: 395251475608662697}
+  - {fileID: 8670521011451071892}
+  - {fileID: 68747158002548791}
+  - {fileID: 4183439305981984364}
+  - {fileID: 5763805288382047442}
+  - {fileID: 6500967272127172075}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!65 &4816541941109949559
@@ -526,13 +1048,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 3215210731
+  GlobalObjectIdHash: 3076503993
   InScenePlacedSourceGlobalObjectIdHash: 3076503993
   DeferredDespawnTick: 0
   Ownership: 1
   AlwaysReplicateAsRoot: 0
   SynchronizeTransform: 1
-  m_InScenePlaced: 1
+  m_InScenePlaced: 0
   ActiveSceneSynchronization: 0
   SceneMigrationSynchronization: 0
   SpawnWithObservers: 1
@@ -602,7 +1124,7 @@ MonoBehaviour:
   _buoyancy: {fileID: 0}
   _movement: {fileID: 0}
   _rigidbody: {fileID: 0}
---- !u!114 &8072850402786104417
+--- !u!114 &6015752386856961085
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -611,15 +1133,45 @@ MonoBehaviour:
   m_GameObject: {fileID: 8218093952752353003}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a1000000000000000000000000000026, type: 3}
+  m_Script: {fileID: 11500000, guid: 0e51fdc057bc7464ba47e86fb15189db, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: FishingZone::FishingZone.Boat.BoatInputRelay
-  ShowTopMostFoldoutHeaderGroup: 1
-  _throttleAction: {fileID: -6517209604669027292, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
-  _steerAction: {fileID: 2822793437544625332, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
-  _brakeAction: {fileID: -4373732558195541613, guid: e71b3fb8145b3b146861cc4f5a1c3593, type: 3}
-  _boatMovement: {fileID: 0}
-  _station: {fileID: 0}
+  m_EditorClassIdentifier: FishingZone::FishingZone.Boat.BoatBoardingPoints
+  _points:
+  - {fileID: 68747158002548791}
+  - {fileID: 4183439305981984364}
+  - {fileID: 5763805288382047442}
+  - {fileID: 6500967272127172075}
+--- !u!1 &8696651645667520349
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 68747158002548791}
+  m_Layer: 9
+  m_Name: BoardingPoint_1
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &68747158002548791
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8696651645667520349}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -1, y: 1.4, z: 2.05}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2474291544220914369}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &8903063023141237453
 GameObject:
   m_ObjectHideFlags: 0
