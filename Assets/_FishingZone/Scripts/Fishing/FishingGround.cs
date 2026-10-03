@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using FishingZone.Core;
+using FishingZone.World;
 using UnityEngine;
 
 namespace FishingZone.Fishing
@@ -84,6 +86,35 @@ namespace FishingZone.Fishing
         /// </summary>
         public IReadOnlyList<FishDefinition> FishPool => _fishPool;
 
+        /// <summary>
+        /// The region this ground belongs to: whichever region its centre lies in, or null if it lies
+        /// in open sea or the scene has no regions.
+        ///
+        /// Worked out from where the ground is rather than dragged in, so a ground and its region
+        /// cannot be separated by an Inspector reference nobody re-checked — the same reasoning that
+        /// ties a ground's water to it. Grounds do not move, so it is settled once and kept.
+        ///
+        /// A ground that straddles two regions belongs to the one holding its centre. Nothing reads
+        /// this for fishing yet; what is caught still comes from the ground's own list.
+        /// </summary>
+        public RegionDefinition Region
+        {
+            get
+            {
+                if (!_hasResolvedRegion)
+                {
+                    _region = RegionVolume.FindRegion(transform.position);
+                    _hasResolvedRegion = true;
+                }
+
+                return _region;
+            }
+        }
+
+        private RegionDefinition _region;
+
+        private bool _hasResolvedRegion;
+
         // The list is static, so it outlives a play session when domain reload is disabled.
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetOnPlay()
@@ -102,6 +133,24 @@ namespace FishingZone.Fishing
         private void OnDisable()
         {
             Registered.Remove(this);
+            _hasResolvedRegion = false;
+        }
+
+        /// <summary>
+        /// Settles the region once every volume in the scene has registered, which is after every
+        /// OnEnable and therefore here. A ground left outside every region of a scene that has them
+        /// is almost certainly a volume drawn too small, so it is said once, loudly.
+        /// </summary>
+        private void Start()
+        {
+            _hasResolvedRegion = false;
+
+            if (RegionVolume.AnyExist && Region == null)
+            {
+                GameLog.Error(LogCategory.Fish,
+                    $"Fishing ground '{name}' lies outside every region in this scene. " +
+                    "Extend a Region Volume over it, or move it.");
+            }
         }
 
         /// <summary>

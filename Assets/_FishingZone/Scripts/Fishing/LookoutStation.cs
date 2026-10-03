@@ -52,6 +52,14 @@ namespace FishingZone.Fishing
         private string _openWaterText = "Open water — there is nothing below us here";
 
         /// <summary>
+        /// Said first, when the boat is inside a region, so the crew always know where they are.
+        /// Takes the region's display name; silent over open sea and in a scene with no regions.
+        /// Leave it empty to stop the post naming regions at all.
+        /// </summary>
+        [SerializeField]
+        private string _regionText = "We are in {0}";
+
+        /// <summary>
         /// Said over a ground whose water was never set up. Reads as a view rather than as an error,
         /// because a player standing on deck cannot fix it and the console has already named it.
         /// </summary>
@@ -212,11 +220,21 @@ namespace FishingZone.Fishing
         private CatchCondition _lastCondition;
 
         /// <summary>
+        /// Tracked with the rest, because the boat sails from one region into another while somebody
+        /// stands still reading this post. Held as the id, so a region being renamed is not a change.
+        /// </summary>
+        private int _lastRegionId = RegionDefinition.NoRegion;
+
+        /// <summary>The boat's own reckoning of where it is. The lookout is bolted to the same deck.</summary>
+        private BoatRegionTracker _regionTracker;
+
+        /// <summary>
         /// Adopted rather than waited for, so a post spawning after the player who is looking at it
         /// still reads correctly. Null-safe before any player exists.
         /// </summary>
         public override void OnNetworkSpawn()
         {
+            _regionTracker = GetComponentInParent<BoatRegionTracker>();
             RefreshLocalPrompt();
         }
 
@@ -249,6 +267,7 @@ namespace FishingZone.Fishing
             WaterStock stock = water != null ? water.Stock : WaterStock.Fresh;
             CatchCondition condition = water != null ? water.Condition : CatchCondition.Ordinary;
             int light = CurrentLight();
+            int regionId = _regionTracker != null ? _regionTracker.CurrentRegionId : RegionDefinition.NoRegion;
 
             if (ReferenceEquals(ground, _lastGround)
                 && ReferenceEquals(water, _lastWater)
@@ -256,7 +275,8 @@ namespace FishingZone.Fishing
                 && callReady == _lastCallReady
                 && stock == _lastStock
                 && condition == _lastCondition
-                && light == _lastLight)
+                && light == _lastLight
+                && regionId == _lastRegionId)
             {
                 return;
             }
@@ -268,6 +288,7 @@ namespace FishingZone.Fishing
             _lastStock = stock;
             _lastCondition = condition;
             _lastLight = light;
+            _lastRegionId = regionId;
 
             RefreshLocalPrompt();
         }
@@ -309,31 +330,48 @@ namespace FishingZone.Fishing
                 return _wrongRoleText;
             }
 
+            string region = DescribeRegion();
+
             FishingGround ground = FishingGround.Find(transform.position);
             if (ground == null)
             {
-                return _openWaterText + DescribeLight();
+                return region + _openWaterText + DescribeLight();
             }
 
             WaterActivity water = WaterActivity.Under(transform.position);
             if (water == null)
             {
-                return _unknownText + DescribeLight();
+                return region + _unknownText + DescribeLight();
             }
 
             string text = water.IsFeeding ? _feedingText : _quietText;
 
             if (string.IsNullOrEmpty(text))
             {
-                return _unknownText + DescribeLight();
+                return region + _unknownText + DescribeLight();
             }
 
-            return text.Replace("{0}", ground.DisplayName)
+            return region + text.Replace("{0}", ground.DisplayName)
                    + _reportSeparator + DescribeHabitat(ground)
                    + DescribeStock(water)
                    + DescribeCondition(water)
                    + DescribeCall(water)
                    + DescribeLight();
+        }
+
+        /// <summary>
+        /// Which region the boat is in, said first and followed by the separator, or nothing over
+        /// open sea. The name is only ever read out here; which region it is was settled by id.
+        /// </summary>
+        private string DescribeRegion()
+        {
+            RegionDefinition region = _regionTracker != null ? _regionTracker.CurrentRegion : null;
+            if (region == null || string.IsNullOrEmpty(_regionText))
+            {
+                return string.Empty;
+            }
+
+            return _regionText.Replace("{0}", region.DisplayName) + _reportSeparator;
         }
 
         /// <summary>

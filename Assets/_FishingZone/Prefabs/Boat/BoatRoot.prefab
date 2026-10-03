@@ -111,7 +111,6 @@ MonoBehaviour:
   _destination: 3
   _departText: 
   _wrongRoleText: 
-  _dayOverText: 
 --- !u!65 &749884980601547294
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -203,8 +202,6 @@ MonoBehaviour:
   _fishText: Fish here
   _occupiedText: Cast to fish, or leave the station
   _offGroundsText: Nothing is feeding under us here
-  _windowClosedText: "The light has gone \u2014 no more casts today. Time to head
-    for port"
   _stopFishText: "Waiting for a bite \u2014 release to stop, or leave the station"
   _busyText: Station in use
   _busyFishingText: Someone has a line out here
@@ -622,8 +619,6 @@ MonoBehaviour:
   _fishText: Fish here
   _occupiedText: Cast to fish, or leave the station
   _offGroundsText: Nothing is feeding under us here
-  _windowClosedText: "The light has gone \u2014 no more casts today. Time to head
-    for port"
   _stopFishText: "Waiting for a bite \u2014 release to stop, or leave the station"
   _busyText: Station in use
   _busyFishingText: Someone has a line out here
@@ -783,6 +778,7 @@ MonoBehaviour:
   _feedingText: "The water is alive \u2014 they're feeding"
   _quietText: "The water is quiet \u2014 little is moving"
   _openWaterText: "Open water \u2014 there is nothing below us here"
+  _regionText: We are in {0}
   _unknownText: You cannot make out the water from here
   _wrongRoleText: Only the Lookout can read the water
   _habitatText: '{0} run here'
@@ -799,6 +795,7 @@ MonoBehaviour:
   _lightGoodText: The light is good
   _lightFadingText: The light is going
   _lightGoneText: The light has gone
+  _lightDawnText: The light is coming up
 --- !u!1 &6709971522165767784
 GameObject:
   m_ObjectHideFlags: 0
@@ -909,6 +906,7 @@ GameObject:
   - component: {fileID: 8774601646985055606}
   - component: {fileID: 1456299964730992533}
   - component: {fileID: 6015752386856961085}
+  - component: {fileID: 3502920103323887692}
   m_Layer: 9
   m_Name: BoatRoot
   m_TagString: Untagged
@@ -1141,6 +1139,18 @@ MonoBehaviour:
   - {fileID: 4183439305981984364}
   - {fileID: 5763805288382047442}
   - {fileID: 6500967272127172075}
+--- !u!114 &3502920103323887692
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8218093952752353003}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5f2dcf84e0a13f9428d7929f9f4279e7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FishingZone::FishingZone.World.BoatRegionTracker
 --- !u!1 &8696651645667520349
 GameObject:
   m_ObjectHideFlags: 0
