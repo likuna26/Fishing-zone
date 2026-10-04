@@ -790,6 +790,7 @@ MonoBehaviour:
   _radius: 20
   _spawnTables:
   - {fileID: 11400000, guid: 67b96bc079fcc294caf5977178396c0f, type: 2}
+  _mayLieInOpenSea: 0
 --- !u!4 &470178025
 Transform:
   m_ObjectHideFlags: 0
@@ -1486,6 +1487,37 @@ Transform:
   - {fileID: 494880388}
   m_Father: {fileID: 1663697693}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &763090651
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 763090652}
+  m_Layer: 0
+  m_Name: RouteStop_North
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &763090652
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 763090651}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -150, y: 0, z: -250}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1797077315}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &770948050
 GameObject:
   m_ObjectHideFlags: 0
@@ -1651,6 +1683,37 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 2020, y: 20, z: 10}
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!1 &1055569108
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1055569109}
+  m_Layer: 0
+  m_Name: RouteStop_Reef
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1055569109
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1055569108}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 300, y: 0, z: -450}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1797077315}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1073914154
 GameObject:
   m_ObjectHideFlags: 0
@@ -2911,6 +2974,7 @@ MonoBehaviour:
   _radius: 20
   _spawnTables:
   - {fileID: 11400000, guid: b94ddaba1aac8794fad5d3dd2e4bed3c, type: 2}
+  _mayLieInOpenSea: 0
 --- !u!4 &1423556787
 Transform:
   m_ObjectHideFlags: 0
@@ -2965,6 +3029,37 @@ Transform:
   - {fileID: 352387593}
   - {fileID: 822658410}
   m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1509375464
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1509375465}
+  m_Layer: 0
+  m_Name: RouteStop_HarbourMouth
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1509375465
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1509375464}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: -640}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1797077315}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1533469616
 GameObject:
@@ -3520,6 +3615,82 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1425530528}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1797077313
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1797077315}
+  - component: {fileID: 1797077314}
+  m_Layer: 0
+  m_Name: PointsOfInterest
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1797077314
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1797077313}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: acda46e3b439ec643af7854f4f63b391, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FishingZone::FishingZone.World.PointOfInterestDirector
+  _definition: {fileID: 11400000, guid: 98d07f1443db1ef4b8c1fef08da90c41, type: 2}
+  _maxActive: 1
+  _routeStops:
+  - {fileID: 1509375465}
+  - {fileID: 763090652}
+  - {fileID: 1055569109}
+  _minAlongLeg: 0.3
+  _maxAlongLeg: 0.7
+  _maxOffsetFromRoute: 60
+  _permanentGrounds:
+  - {fileID: 1423556786}
+  - {fileID: 470178024}
+  _groundClearance: 120
+  _landmarks:
+  - {fileID: 1615367341}
+  - {fileID: 2108407458}
+  - {fileID: 699608387}
+  - {fileID: 1150902524}
+  - {fileID: 2092982063}
+  - {fileID: 2020656204}
+  - {fileID: 1290677392}
+  _landmarkClearance: 40
+  _excludedRegions:
+  - {fileID: 11400000, guid: b4b649d4b30aba547a86d016592fcd05, type: 2}
+  _boatClearance: 150
+  _worldHalfExtent: 950
+  _candidatesPerAttempt: 12
+  _retrySeconds: 10
+  _seedOverride: 0
+--- !u!4 &1797077315
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1797077313}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 1509375465}
+  - {fileID: 763090652}
+  - {fileID: 1055569109}
+  m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1902715148
 GameObject:
@@ -4231,3 +4402,4 @@ SceneRoots:
   - {fileID: 45328141}
   - {fileID: 76077740}
   - {fileID: 1663697693}
+  - {fileID: 1797077315}

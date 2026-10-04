@@ -68,7 +68,37 @@ namespace FishingZone.Fishing
         [SerializeField]
         private FishSpawnTable[] _spawnTables;
 
+        /// <summary>
+        /// Whether this water may lie outside every region on purpose.
+        ///
+        /// Off for anything placed by hand, where open sea almost always means a region volume drawn
+        /// too small. On for water that comes and goes — a point of interest found on the way
+        /// somewhere — whose whole reason to exist is the sea between the regions.
+        /// </summary>
+        [SerializeField]
+        private bool _mayLieInOpenSea;
+
         public string DisplayName => _displayName;
+
+        /// <summary>
+        /// Whether a new line may still go into this water. Always true for permanent grounds.
+        ///
+        /// Turned off by water that is going away, so nobody starts something it would have to cut
+        /// short. A line already out is not affected: it finishes where it began. Set on every peer
+        /// by whatever owns the water, so a Fisher's prompt and the server's refusal agree.
+        /// </summary>
+        public bool AcceptsNewLines => _acceptsNewLines;
+
+        private bool _acceptsNewLines = true;
+
+        /// <summary>
+        /// Stops new lines going into this water, for good. There is no way back, because nothing
+        /// that closes a ground means to open it again.
+        /// </summary>
+        public void CloseToNewLines()
+        {
+            _acceptsNewLines = false;
+        }
 
         public float Radius => _radius;
 
@@ -137,7 +167,7 @@ namespace FishingZone.Fishing
         {
             _hasResolvedRegion = false;
 
-            if (RegionVolume.AnyExist && Region == null)
+            if (RegionVolume.AnyExist && Region == null && !_mayLieInOpenSea)
             {
                 GameLog.Error(LogCategory.Fish,
                     $"Fishing ground '{name}' lies outside every region in this scene. " +

@@ -400,8 +400,49 @@ namespace FishingZone.Fishing
         private bool IsLocalOccupant =>
             NetworkManager.Singleton != null && _occupantClientId.Value == NetworkManager.Singleton.LocalClientId;
 
+        /// <summary>Every spawned station, so water that wants to leave can ask who is still in it.</summary>
+        private static readonly List<FisherStation> Spawned = new List<FisherStation>();
+
+        // The list is static, so it outlives a play session when domain reload is disabled.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetSpawnedOnPlay()
+        {
+            Spawned.Clear();
+        }
+
+        /// <summary>
+        /// Whether any station still has a line in this ground.
+        ///
+        /// Server only, because the ground a cast went into is only ever known there. Asked by water
+        /// that is going away, so it waits for the last line out rather than taking the fish's home
+        /// from under it. Reads and changes nothing.
+        /// </summary>
+        public static bool AnyLineIn(FishingGround ground)
+        {
+            if (ground == null)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < Spawned.Count; i++)
+            {
+                FisherStation station = Spawned[i];
+                if (station != null && station._castGround == ground && station.Phase != FishingPhase.Idle)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         public override void OnNetworkSpawn()
         {
+            if (!Spawned.Contains(this))
+            {
+                Spawned.Add(this);
+            }
+
             _occupantClientId.OnValueChanged += HandleOccupantChanged;
             _phase.OnValueChanged += HandlePhaseChanged;
             _isResisting.OnValueChanged += HandleResistingChanged;
@@ -422,6 +463,8 @@ namespace FishingZone.Fishing
 
         public override void OnNetworkDespawn()
         {
+            Spawned.Remove(this);
+
             _occupantClientId.OnValueChanged -= HandleOccupantChanged;
             _phase.OnValueChanged -= HandlePhaseChanged;
             _isResisting.OnValueChanged -= HandleResistingChanged;
@@ -1269,7 +1312,11 @@ namespace FishingZone.Fishing
                 return true;
             }
 
-            return FishingGround.Find(transform.position) != null;
+            // Water that is going away is no longer somewhere to start a line, so it reads as open
+            // water to the prompt and to the server's refusal alike. A line already in it is not
+            // asked about here and finishes normally.
+            FishingGround ground = FishingGround.Find(transform.position);
+            return ground != null && ground.AcceptsNewLines;
         }
 
         /// <summary>
