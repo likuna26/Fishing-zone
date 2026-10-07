@@ -21,3 +21,4 @@ MonoBehaviour:
     SceneName: Port
   - State: 4
     SceneName: Ocean_01
+  _sessionStartState: 4

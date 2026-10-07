@@ -122,7 +122,15 @@ namespace FishingZone.UI
                 return;
             }
 
-            GoTo(GameState.Port);
+            // Where a session begins is the flow's to say, so the lobby still names no scene.
+            GameFlowManager flow = ServiceRegistry.Get<GameFlowManager>();
+            if (flow == null)
+            {
+                // ServiceRegistry has already logged why.
+                return;
+            }
+
+            flow.GoTo(flow.SessionStartState);
         }
 
         /// <summary>Wired to the BACK button's On Click () list.</summary>

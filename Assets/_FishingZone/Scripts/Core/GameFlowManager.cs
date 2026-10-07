@@ -24,6 +24,12 @@ namespace FishingZone.Core
 
         public bool IsTransitioning { get; private set; }
 
+        /// <summary>
+        /// Where the lobby sends a crew it starts, as the catalog says. Port when there is no catalog,
+        /// which is also the state the missing catalog will be reported against.
+        /// </summary>
+        public GameState SessionStartState => _sceneCatalog != null ? _sceneCatalog.SessionStartState : GameState.Port;
+
         private static bool IsSessionActive =>
             NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening;
 
@@ -109,7 +115,9 @@ namespace FishingZone.Core
                 case GameState.MainMenu:
                     return to == GameState.Lobby;
                 case GameState.Lobby:
-                    return to == GameState.Port || to == GameState.MainMenu;
+                    // Expedition directly when the catalog starts sessions aboard, in a sea whose
+                    // harbour is its shore; Port otherwise.
+                    return to == GameState.Port || to == GameState.Expedition || to == GameState.MainMenu;
                 case GameState.Port:
                     return to == GameState.Expedition || to == GameState.MainMenu;
                 case GameState.Expedition:
