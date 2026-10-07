@@ -4,7 +4,7 @@ using NUnit.Framework;
 namespace FishingZone.Tests
 {
     /// <summary>
-    /// When a voyage begins, tested on the rule alone. The harbour is Ocean_01's Harbour Waters
+    /// When a voyage begins and ends, tested on the rules alone. The harbour is Ocean_01's Harbour Waters
     /// (region 1); North Shallows is region 2 and open sea is no region at all.
     /// </summary>
     public class HarbourVoyageTests
@@ -70,6 +70,59 @@ namespace FishingZone.Tests
             Assert.AreEqual(1, departures);
             Assert.AreEqual(1, number);
             Assert.AreEqual(VoyagePhase.UnderWay, phase);
+        }
+
+        [Test]
+        public void OnlyAVoyageUnderWay_LyingBerthed_CanEnd()
+        {
+            Assert.IsTrue(VoyageRules.CanEnd(VoyagePhase.UnderWay, BerthStatus.Berthed), "alongside and stopped");
+            Assert.IsFalse(VoyageRules.CanEnd(VoyagePhase.UnderWay, BerthStatus.Away), "back in the harbour, off the quay");
+            Assert.IsFalse(VoyageRules.CanEnd(VoyagePhase.UnderWay, BerthStatus.TooFast), "at the quay, still moving");
+            Assert.IsFalse(VoyageRules.CanEnd(VoyagePhase.Berthed, BerthStatus.Berthed), "no voyage under way");
+        }
+
+        [Test]
+        public void TwoVoyages_WithoutLeavingTheScene()
+        {
+            // Out, home into the harbour without berthing, alongside too fast, alongside and ended,
+            // then out again: two departures, one ending, and the second voyage is voyage 2.
+            VoyagePhase phase = VoyagePhase.Berthed;
+            int number = 0;
+            int departures = 0;
+            int endings = 0;
+
+            void Step(int region, BerthStatus berth)
+            {
+                if (VoyageRules.ShouldDepart(phase, Harbour, region))
+                {
+                    phase = VoyagePhase.UnderWay;
+                    number = VoyageRules.NextVoyageNumber(number);
+                    departures++;
+                }
+                else if (VoyageRules.CanEnd(phase, berth))
+                {
+                    phase = VoyagePhase.Berthed;
+                    endings++;
+                }
+            }
+
+            Step(Harbour, BerthStatus.Berthed);
+            Step(OpenSea, BerthStatus.Away);
+            Step(Harbour, BerthStatus.Away);
+            Step(Harbour, BerthStatus.TooFast);
+            Assert.AreEqual(VoyagePhase.UnderWay, phase, "home but not berthed");
+
+            Step(Harbour, BerthStatus.Berthed);
+            Assert.AreEqual(VoyagePhase.Berthed, phase, "berthed and ended");
+            Assert.AreEqual(1, number, "an ended voyage keeps its number");
+
+            Step(Harbour, BerthStatus.Berthed);
+            Assert.AreEqual(1, endings, "ending twice is ending once");
+
+            Step(NorthShallows, BerthStatus.Away);
+            Assert.AreEqual(VoyagePhase.UnderWay, phase);
+            Assert.AreEqual(2, number);
+            Assert.AreEqual(2, departures);
         }
     }
 }

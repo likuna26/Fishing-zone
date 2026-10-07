@@ -123,6 +123,7 @@ namespace FishingZone.Fishing
             }
 
             HarbourVoyage.VoyageStarted += HandleVoyageStarted;
+            HarbourVoyage.VoyageEnded += HandleVoyageEnded;
         }
 
         private void OnDestroy()
@@ -140,6 +141,7 @@ namespace FishingZone.Fishing
             }
 
             HarbourVoyage.VoyageStarted -= HandleVoyageStarted;
+            HarbourVoyage.VoyageEnded -= HandleVoyageEnded;
 
             ServiceRegistry.Unregister<CrewCatchLog>();
         }
@@ -182,6 +184,23 @@ namespace FishingZone.Fishing
         private void HandleVoyageStarted(HarbourVoyage voyage)
         {
             BeginTripOnServer($"Voyage {voyage.VoyageNumber} has begun; the crew's trip tally starts at nothing.");
+        }
+
+        /// <summary>
+        /// The crew are home, and this is what the trip came to. Said and kept, never cleared here:
+        /// the count stands, readable at the quay, until the boat next leaves the harbour.
+        /// </summary>
+        private void HandleVoyageEnded(HarbourVoyage voyage)
+        {
+            if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer)
+            {
+                return;
+            }
+
+            int tenths = GetVoyageCatchWeightTenths();
+            GameLog.Info(LogCategory.Fish,
+                $"Voyage {voyage.VoyageNumber} came home with {GetVoyageCatchCount()} fish weighing " +
+                $"{tenths / 10}.{tenths % 10} kg; the crew has landed {GetCrewCatchCount()} this session.");
         }
 
         /// <summary>

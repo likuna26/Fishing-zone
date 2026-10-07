@@ -103,6 +103,43 @@ namespace FishingZone.World
         /// <summary>This voyage's seed, once the server has drawn it. Zero before.</summary>
         public int Seed { get; private set; }
 
+        private void OnEnable()
+        {
+            HarbourVoyage.VoyageEnded += HandleVoyageEnded;
+        }
+
+        private void OnDisable()
+        {
+            HarbourVoyage.VoyageEnded -= HandleVoyageEnded;
+        }
+
+        /// <summary>
+        /// The voyage is over, so is this voyage's sea. Whatever is out there is sent away by the rule
+        /// every point already leaves by, and nothing new is drawn until the crew next sail out of the
+        /// harbour, when the next voyage gets a seed of its own.
+        ///
+        /// Server only, as the director is.
+        /// </summary>
+        private void HandleVoyageEnded(HarbourVoyage voyage)
+        {
+            NetworkManager network = NetworkManager.Singleton;
+            if (network == null || !network.IsServer || !_hasStarted)
+            {
+                return;
+            }
+
+            PruneGone();
+            for (int i = 0; i < _active.Count; i++)
+            {
+                _active[i].BeginLeavingOnServer($"voyage {voyage.VoyageNumber} has ended");
+            }
+
+            _hasStarted = false;
+
+            GameLog.Info(LogCategory.Flow,
+                $"Points of interest stand down: voyage {voyage.VoyageNumber} has ended (seed {Seed}).");
+        }
+
         private void Update()
         {
             NetworkManager network = NetworkManager.Singleton;

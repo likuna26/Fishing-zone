@@ -453,6 +453,7 @@ namespace FishingZone.Fishing
             if (IsServer)
             {
                 NetworkManager.Singleton.OnClientDisconnectCallback += HandleClientDisconnected;
+                HarbourVoyage.VoyageEnded += HandleVoyageEnded;
             }
 
             // Adopted rather than waited for, so a station arriving after the player who is looking
@@ -476,6 +477,8 @@ namespace FishingZone.Fishing
             {
                 NetworkManager.Singleton.OnClientDisconnectCallback -= HandleClientDisconnected;
             }
+
+            HarbourVoyage.VoyageEnded -= HandleVoyageEnded;
 
             // Never leave a departing station holding the local player's input. A crew that changed
             // scene mid-cast would otherwise keep the Fishing map live for the rest of the session.
@@ -1679,6 +1682,27 @@ namespace FishingZone.Fishing
             {
                 ReleaseOnServer();
             }
+        }
+
+        /// <summary>
+        /// The voyage is over, so the line comes in. Whatever was on it is lost, as it was when coming
+        /// home meant leaving the sea behind; a fish already landed is in the log, and only the sight
+        /// of it ends early. Whoever holds the station keeps it, ready for the next voyage.
+        ///
+        /// Server only: it is subscribed only there.
+        /// </summary>
+        private void HandleVoyageEnded(HarbourVoyage voyage)
+        {
+            if (!IsServer || !IsSpawned || Phase == FishingPhase.Idle)
+            {
+                return;
+            }
+
+            FishingPhase was = Phase;
+            SetPhaseOnServer(FishingPhase.Idle);
+
+            GameLog.Info(LogCategory.Fish,
+                $"'{name}' brought its line in from {was}: voyage {voyage.VoyageNumber} has ended.");
         }
 
         /// <summary>

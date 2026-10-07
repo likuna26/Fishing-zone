@@ -52,6 +52,17 @@ namespace FishingZone.Core
         private string _tooFastAtBerthText = "Ease her to a stop alongside the quay";
 
         /// <summary>
+        /// What the way home says alongside the quay where the voyage ends in the harbour itself,
+        /// rather than by sailing for port.
+        /// </summary>
+        [SerializeField]
+        private string _endVoyageText = "End the voyage";
+
+        /// <summary>What the way home says in a harbour where no voyage is under way to end.</summary>
+        [SerializeField]
+        private string _noVoyageText = "Take her out past the breakwater to begin a voyage";
+
+        /// <summary>
         /// Time constant of the speed smoothing on clients, matching the dashboard's, so the prompt
         /// and the knots shown at the wheel do not tell two different stories.
         /// </summary>
@@ -67,6 +78,17 @@ namespace FishingZone.Core
 
         private bool IsReturnToPort => _destination == GameState.Port;
 
+        /// <summary>
+        /// The harbour voyage this station ends, where voyages end alongside rather than in port.
+        /// Null for a station that sets sail, in a scene without one, or with ending in harbour off,
+        /// all of which sail for port exactly as before.
+        /// </summary>
+        private static HarbourVoyage VoyageEndedHere(bool isReturnToPort)
+        {
+            HarbourVoyage voyage = HarbourVoyage.Current;
+            return isReturnToPort && voyage != null && voyage.EndsVoyageInHarbour ? voyage : null;
+        }
+
         private bool IsDestinationValid =>
             _destination == GameState.Port || _destination == GameState.Expedition;
 
@@ -74,10 +96,14 @@ namespace FishingZone.Core
             ? (_destination == GameState.Expedition ? "Set sail" : "Return to port")
             : _departText;
 
+        // Where the voyage ends in the harbour, nobody is returning to port, so the refusal says what
+        // the Navigator actually does here.
         private string WrongRoleText => string.IsNullOrEmpty(_wrongRoleText)
             ? (_destination == GameState.Expedition
                 ? "Only the Navigator may set sail"
-                : "Only the Navigator may return to port")
+                : VoyageEndedHere(IsReturnToPort) != null
+                    ? "Only the Navigator may end the voyage"
+                    : "Only the Navigator may return to port")
             : _wrongRoleText;
 
         /// <summary>
@@ -200,6 +226,12 @@ namespace FishingZone.Core
                 return WrongRoleText;
             }
 
+            HarbourVoyage voyage = VoyageEndedHere(IsReturnToPort);
+            if (voyage != null && !voyage.IsUnderWay)
+            {
+                return _noVoyageText;
+            }
+
             switch (CurrentBerthStatus())
             {
                 case BerthStatus.Away:
@@ -207,7 +239,7 @@ namespace FishingZone.Core
                 case BerthStatus.TooFast:
                     return _tooFastAtBerthText;
                 default:
-                    return DepartText;
+                    return voyage != null ? _endVoyageText : DepartText;
             }
         }
 
@@ -273,6 +305,16 @@ namespace FishingZone.Core
                 return;
             }
 
+            // A harbour with no voyage under way has nothing to end. Checked before the berth, so a
+            // crew lying at the quay between voyages is told the true reason.
+            HarbourVoyage voyage = VoyageEndedHere(IsReturnToPort);
+            if (voyage != null && !voyage.IsUnderWay)
+            {
+                GameLog.Info(LogCategory.Flow,
+                    $"Refused client {senderId} at '{name}': no voyage is under way to end.");
+                return;
+            }
+
             // A voyage ends alongside the quay, never out at sea. Asked of the server's own boat, so
             // a client whose prompt read berthed a frame early is still told no.
             BerthStatus berth = CurrentBerthStatus();
@@ -281,6 +323,20 @@ namespace FishingZone.Core
                 GameLog.Info(LogCategory.Flow, berth == BerthStatus.TooFast
                     ? $"Refused client {senderId} at '{name}': the boat is at the berth but still moving."
                     : $"Refused client {senderId} at '{name}': the boat is not alongside the quay.");
+                return;
+            }
+
+            // Ended where the crew is. Nothing loads, nobody is moved and every job stays taken; the
+            // voyage simply stops being under way, and what belonged to it is put away by whatever
+            // owns it.
+            if (voyage != null)
+            {
+                if (VoyageRules.CanEnd(voyage.Phase, berth) && voyage.EndVoyageOnServer())
+                {
+                    GameLog.Info(LogCategory.Flow,
+                        $"Client {senderId} ended voyage {voyage.VoyageNumber} alongside the quay from '{name}'.");
+                }
+
                 return;
             }
 

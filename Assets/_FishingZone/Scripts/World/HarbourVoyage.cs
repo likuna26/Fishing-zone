@@ -13,7 +13,8 @@ namespace FishingZone.World
     }
 
     /// <summary>
-    /// When a voyage begins, as a rule apart from any scene or network, so it can be tested on its own.
+    /// When a voyage begins and ends, as rules apart from any scene or network, so they can be
+    /// tested on their own.
     /// </summary>
     public static class VoyageRules
     {
@@ -24,6 +25,15 @@ namespace FishingZone.World
         public static bool ShouldDepart(VoyagePhase phase, int harbourRegionId, int boatRegionId)
         {
             return phase == VoyagePhase.Berthed && boatRegionId != harbourRegionId;
+        }
+
+        /// <summary>
+        /// Under way, and lying alongside the quay slowly enough to count as berthed. Coming back into
+        /// the harbour's water is not enough: a voyage ends at the quay, not at the breakwater.
+        /// </summary>
+        public static bool CanEnd(VoyagePhase phase, BerthStatus berth)
+        {
+            return phase == VoyagePhase.UnderWay && berth == BerthStatus.Berthed;
         }
 
         /// <summary>The number a departure gives the voyage it begins: one more than the last.</summary>
@@ -64,7 +74,7 @@ namespace FishingZone.World
     }
 
     /// <summary>
-    /// When a voyage begins, in a world the crew never leaves.
+    /// When a voyage begins and ends, in a world the crew never leaves.
     ///
     /// A voyage used to begin when a scene loaded: pressing "Set sail" in port loaded the sea, and
     /// everything that belonged to one trip started over with it. In a harbour that is part of the
@@ -80,8 +90,10 @@ namespace FishingZone.World
     /// to one trip listen for it; a scene without one of these keeps starting trips the old way, on
     /// arrival, so the fallback scenes behave exactly as they always have.
     ///
-    /// Only the beginning lives here for now. Coming home still loads port, which ends this object
-    /// with the scene; the next arrival starts again at voyage nought, lying in harbour.
+    /// A voyage ends when the Navigator says so at the quay, and the server agrees the boat is lying
+    /// there; the station asks, and this records it. Nothing loads and nobody moves: the phase goes
+    /// back to lying in harbour, keeping its number, and <see cref="VoyageEnded"/> tells everything
+    /// that belongs to one trip to put itself away. The next departure is the next voyage.
     /// </summary>
     public class HarbourVoyage : NetworkBehaviour
     {
@@ -92,6 +104,14 @@ namespace FishingZone.World
         /// <summary>The boat whose departure counts. Found in the scene if left empty.</summary>
         [SerializeField]
         private Transform _boat;
+
+        /// <summary>
+        /// Whether coming alongside ends the voyage here, in this scene. Off, the way home loads port
+        /// as it did before the harbour was part of the sea — kept so that can be had back without
+        /// undoing anything.
+        /// </summary>
+        [SerializeField]
+        private bool _endVoyageInHarbour = true;
 
         private readonly NetworkVariable<VoyageState> _state = new NetworkVariable<VoyageState>(
             default,
@@ -111,6 +131,12 @@ namespace FishingZone.World
         /// </summary>
         public static event Action<HarbourVoyage> VoyageStarted;
 
+        /// <summary>
+        /// Raised on every peer when a voyage ends, after the state has changed, with the voyage that
+        /// ended. Its number is still the finished voyage's until the next departure.
+        /// </summary>
+        public static event Action<HarbourVoyage> VoyageEnded;
+
         /// <summary>The voyage in this scene, or null where voyages still begin on arrival.</summary>
         public static HarbourVoyage Current => _current;
 
@@ -126,6 +152,8 @@ namespace FishingZone.World
 
         public bool IsUnderWay => Phase == VoyagePhase.UnderWay;
 
+        public bool EndsVoyageInHarbour => _endVoyageInHarbour;
+
         // Static state outlives a play session when domain reload is disabled, exactly as the other
         // registries in this project do.
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -133,6 +161,7 @@ namespace FishingZone.World
         {
             _current = null;
             VoyageStarted = null;
+            VoyageEnded = null;
         }
 
         private void OnEnable()
@@ -236,18 +265,42 @@ namespace FishingZone.World
             return null;
         }
 
+        /// <summary>
+        /// Ends the voyage under way, here, with nobody going anywhere. Server only, and only for a
+        /// voyage that is under way: the caller has already established that the boat lies at the
+        /// quay and that the Navigator asked. Answers whether a voyage ended.
+        /// </summary>
+        public bool EndVoyageOnServer()
+        {
+            if (!IsServer || !IsSpawned || !IsUnderWay)
+            {
+                return false;
+            }
+
+            _state.Value = new VoyageState { Phase = VoyagePhase.Berthed, Number = VoyageNumber };
+            return true;
+        }
+
         private void HandleStateChanged(VoyageState previous, VoyageState current)
         {
-            if (current.Phase != VoyagePhase.UnderWay || previous.Phase == VoyagePhase.UnderWay)
+            if (current.Phase == VoyagePhase.UnderWay && previous.Phase != VoyagePhase.UnderWay)
             {
+                GameLog.Info(LogCategory.Flow, IsServer
+                    ? $"Voyage {current.Number} is under way: the boat has left the harbour."
+                    : $"Voyage {current.Number} is under way (heard from the host).");
+
+                VoyageStarted?.Invoke(this);
                 return;
             }
 
-            GameLog.Info(LogCategory.Flow, IsServer
-                ? $"Voyage {current.Number} is under way: the boat has left the harbour."
-                : $"Voyage {current.Number} is under way (heard from the host).");
+            if (current.Phase == VoyagePhase.Berthed && previous.Phase == VoyagePhase.UnderWay)
+            {
+                GameLog.Info(LogCategory.Flow, IsServer
+                    ? $"Voyage {current.Number} has ended alongside the quay."
+                    : $"Voyage {current.Number} has ended alongside the quay (heard from the host).");
 
-            VoyageStarted?.Invoke(this);
+                VoyageEnded?.Invoke(this);
+            }
         }
 
         private static string DescribeState(VoyageState state)

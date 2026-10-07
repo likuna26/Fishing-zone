@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using FishingZone.Core;
+using FishingZone.World;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -424,29 +425,66 @@ namespace FishingZone.Fishing
 
             if (IsServer)
             {
-                // Rolled rather than started quiet, so a crew cannot learn that every voyage opens
-                // the same way and stop asking their lookout.
-                bool feeding = Random.value < 0.5f;
+                OpenForVoyageOnServer("opened");
 
-                _isFeeding.Value = feeding;
-                ArmSpellCountdown(feeding);
-
-                // Settled here and never again. What kind of day it is cannot change under a crew
-                // who have already committed to sailing somewhere on the strength of it.
-                CatchCondition condition = RollCondition();
-                _condition.Value = (int)condition;
-
-                // Named, because a map with several grounds turns one line about "the water" into
-                // several that cannot be told apart.
-                GameLog.Info(LogCategory.Fish,
-                    $"'{name}' opened {DescribeState(feeding)}, for {_spellCountdown:F1}s, " +
-                    $"with the fish {DescribeCondition(condition)}.");
+                // In a sea with a harbour in it, nothing loads between voyages, so the water has to be
+                // made new for the next one when the last one ends.
+                HarbourVoyage.VoyageEnded += HandleVoyageEnded;
             }
         }
 
         public override void OnNetworkDespawn()
         {
             _isFeeding.OnValueChanged -= HandleFeedingChanged;
+            HarbourVoyage.VoyageEnded -= HandleVoyageEnded;
+        }
+
+        /// <summary>
+        /// Settled for the next voyage the moment the last one ends, rather than when the next one
+        /// begins: the crew lying at the quay ask their lookout about the water they are about to
+        /// sail into, and that answer must still be true when they get there.
+        /// </summary>
+        private void HandleVoyageEnded(HarbourVoyage voyage)
+        {
+            if (!IsServer || !IsSpawned)
+            {
+                return;
+            }
+
+            OpenForVoyageOnServer("settled for the next voyage");
+        }
+
+        /// <summary>
+        /// Makes this water what it is for one voyage: feeding or quiet, what kind of day it is, fresh
+        /// stock and a call ready to answer. Once on arrival, as it always was, and again between
+        /// voyages where nothing arrives.
+        /// </summary>
+        private void OpenForVoyageOnServer(string verb)
+        {
+            // Rolled rather than started quiet, so a crew cannot learn that every voyage opens
+            // the same way and stop asking their lookout.
+            bool feeding = Random.value < 0.5f;
+
+            _isFeeding.Value = feeding;
+            ArmSpellCountdown(feeding);
+
+            // Settled here and not again this voyage. What kind of day it is cannot change under a
+            // crew who have already committed to sailing somewhere on the strength of it.
+            CatchCondition condition = RollCondition();
+            _condition.Value = (int)condition;
+
+            // Fresh water and a call ready to answer. Nothing to do on arrival, where both start that
+            // way; between voyages, a worked ground comes back as a scene load used to bring it.
+            _caughtHere = 0;
+            _stock.Value = (int)WaterStock.Fresh;
+            _callCooldown = 0f;
+            _isCallReady.Value = true;
+
+            // Named, because a map with several grounds turns one line about "the water" into
+            // several that cannot be told apart.
+            GameLog.Info(LogCategory.Fish,
+                $"'{name}' {verb} {DescribeState(feeding)}, for {_spellCountdown:F1}s, " +
+                $"with the fish {DescribeCondition(condition)}.");
         }
 
         /// <summary>
