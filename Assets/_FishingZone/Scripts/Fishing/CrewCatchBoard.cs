@@ -1,4 +1,5 @@
 using FishingZone.Core;
+using FishingZone.World;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -21,6 +22,12 @@ namespace FishingZone.Fishing
     /// Holds nothing that outlives the port. The count belongs to the log, which survives the
     /// voyage; this is a view of it, spawned with the scene and destroyed with it, which is why it
     /// can afford to read once. Nobody fishes in port, so the number cannot change while it is up.
+    ///
+    /// The same board also rides the boat, for a sea whose harbour ends voyages without a port to
+    /// sail to. There nothing is built fresh between trips, so it reads the log again each time a
+    /// voyage ends; while one is under way it says only where the catch will be reckoned, because
+    /// "this trip" would be the last trip's. Anywhere voyages still end in port it stays out of
+    /// sight, and the board in port does the telling as it always has.
     /// </summary>
     public class CrewCatchBoard : NetworkBehaviour, IInteractable
     {
@@ -88,6 +95,27 @@ namespace FishingZone.Fishing
         private string _reportSeparator = ". ";
 
         /// <summary>
+        /// Whether this board belongs to a harbour that ends voyages itself. On, it shows only where
+        /// such a harbour exists and is ending voyages, reads the log again as each voyage ends, and
+        /// says <see cref="_underWayText"/> while one is under way. Off, as in port, it is exactly the
+        /// board it always was.
+        /// </summary>
+        [SerializeField]
+        private bool _harbourResultsOnly;
+
+        /// <summary>
+        /// Said while a voyage is under way, instead of a trip that has not been reckoned. A
+        /// between-voyages board, not a tally kept on the move.
+        /// </summary>
+        [SerializeField]
+        private string _underWayText = "The catch is reckoned at the quay";
+
+        private Renderer[] _renderers;
+        private Collider[] _colliders;
+        private bool _hasAppliedShown;
+        private bool _isShown;
+
+        /// <summary>
         /// Written once by the server, read by everyone, and that is the whole of the traffic. It
         /// travels with the spawn, so a client has the number before it has a player able to walk up
         /// and read it.
@@ -143,11 +171,59 @@ namespace FishingZone.Fishing
         /// </summary>
         public override void OnNetworkSpawn()
         {
-            if (!IsServer)
+            if (_harbourResultsOnly)
             {
-                return;
+                // Every peer works this out for itself from the scene it loaded, so a board nobody
+                // can see is one nobody can look at, on any machine.
+                ApplyShown(IsShownHere());
+
+                if (IsServer)
+                {
+                    HarbourVoyage.VoyageEnded += HandleVoyageEnded;
+                }
             }
 
+            if (IsServer)
+            {
+                ReadLogOnServer();
+            }
+        }
+
+        public override void OnNetworkDespawn()
+        {
+            HarbourVoyage.VoyageEnded -= HandleVoyageEnded;
+        }
+
+        /// <summary>
+        /// The voyage is in, so the trip it came to is the one to tell. Read now rather than at the
+        /// next departure, which is when the log forgets it.
+        /// </summary>
+        private void HandleVoyageEnded(HarbourVoyage voyage)
+        {
+            if (IsServer && IsSpawned)
+            {
+                ReadLogOnServer();
+            }
+        }
+
+        /// <summary>
+        /// Kept in step with the harbour, which can be told to send voyages back to port instead.
+        /// Only boards that belong to a harbour ask.
+        /// </summary>
+        private void LateUpdate()
+        {
+            if (_harbourResultsOnly && IsSpawned)
+            {
+                ApplyShown(IsShownHere());
+            }
+        }
+
+        /// <summary>
+        /// Copies what the log says into what everybody reads. Server only, and the one place the
+        /// board learns anything.
+        /// </summary>
+        private void ReadLogOnServer()
+        {
             CrewCatchLog log = ServiceRegistry.Get<CrewCatchLog>();
             if (log == null)
             {
@@ -176,7 +252,7 @@ namespace FishingZone.Fishing
         /// </summary>
         public bool CanInteract(GameObject interactor)
         {
-            return true;
+            return !_harbourResultsOnly || IsShownHere();
         }
 
         /// <summary>
@@ -188,6 +264,11 @@ namespace FishingZone.Fishing
         /// </summary>
         public string GetInteractionText(GameObject interactor)
         {
+            if (_harbourResultsOnly && HarbourVoyage.Current != null && HarbourVoyage.Current.IsUnderWay)
+            {
+                return _underWayText;
+            }
+
             int count = _crewCatchCount.Value;
 
             if (count <= 0)
@@ -268,6 +349,47 @@ namespace FishingZone.Fishing
         private static string FormatWeight(int tenths)
         {
             return $"{tenths / 10}.{tenths % 10}";
+        }
+
+        /// <summary>
+        /// Whether a harbour here ends voyages, which is the only place this board has anything to
+        /// tell that the board in port does not.
+        /// </summary>
+        private static bool IsShownHere()
+        {
+            HarbourVoyage voyage = HarbourVoyage.Current;
+            return voyage != null && voyage.EndsVoyageInHarbour;
+        }
+
+        /// <summary>
+        /// Shown or put out of sight and out of reach. The board itself stays, so the boat is built
+        /// the same on every machine whichever way it is showing.
+        /// </summary>
+        private void ApplyShown(bool shown)
+        {
+            if (_hasAppliedShown && shown == _isShown)
+            {
+                return;
+            }
+
+            if (_renderers == null)
+            {
+                _renderers = GetComponentsInChildren<Renderer>(true);
+                _colliders = GetComponentsInChildren<Collider>(true);
+            }
+
+            for (int i = 0; i < _renderers.Length; i++)
+            {
+                _renderers[i].enabled = shown;
+            }
+
+            for (int i = 0; i < _colliders.Length; i++)
+            {
+                _colliders[i].enabled = shown;
+            }
+
+            _hasAppliedShown = true;
+            _isShown = shown;
         }
 
         /// <summary>
