@@ -113,6 +113,15 @@ namespace FishingZone.World
 
             if (!_hasStarted)
             {
+                // A sea with a harbour in it starts the voyage's clock when the boat leaves the
+                // harbour, so the first birds are timed from the departure rather than from the crew
+                // arriving. Anywhere else, arriving is the departure, as it always was.
+                HarbourVoyage voyage = HarbourVoyage.Current;
+                if (voyage != null && !voyage.IsUnderWay)
+                {
+                    return;
+                }
+
                 Begin();
                 if (!_hasStarted)
                 {

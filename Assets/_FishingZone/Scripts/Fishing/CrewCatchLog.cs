@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using FishingZone.Core;
+using FishingZone.World;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -120,6 +121,8 @@ namespace FishingZone.Fishing
             {
                 _gameFlow.StateChanged += HandleStateChanged;
             }
+
+            HarbourVoyage.VoyageStarted += HandleVoyageStarted;
         }
 
         private void OnDestroy()
@@ -135,6 +138,8 @@ namespace FishingZone.Fishing
                 _gameFlow.StateChanged -= HandleStateChanged;
                 _gameFlow = null;
             }
+
+            HarbourVoyage.VoyageStarted -= HandleVoyageStarted;
 
             ServiceRegistry.Unregister<CrewCatchLog>();
         }
@@ -160,6 +165,31 @@ namespace FishingZone.Fishing
                 return;
             }
 
+            // A sea with a harbour in it starts its trips when the boat leaves the harbour, not when
+            // the crew arrives. Arrival still starts them everywhere else.
+            if (HarbourVoyage.AnyExist)
+            {
+                return;
+            }
+
+            BeginTripOnServer("A new trip has begun; the crew's trip tally starts at nothing.");
+        }
+
+        /// <summary>
+        /// The boat has left the harbour, which is where a trip begins in a sea that has one. The
+        /// count from the trip before still stood until now, for the same reason it stands in port.
+        /// </summary>
+        private void HandleVoyageStarted(HarbourVoyage voyage)
+        {
+            BeginTripOnServer($"Voyage {voyage.VoyageNumber} has begun; the crew's trip tally starts at nothing.");
+        }
+
+        /// <summary>
+        /// Server-guarded because both of its callers fire on every peer. The count lives only on the
+        /// server, so only the server has anything to clear.
+        /// </summary>
+        private void BeginTripOnServer(string message)
+        {
             if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer)
             {
                 return;
@@ -167,7 +197,7 @@ namespace FishingZone.Fishing
 
             _voyageCatchesByClient.Clear();
 
-            GameLog.Info(LogCategory.Fish, "A new trip has begun; the crew's trip tally starts at nothing.");
+            GameLog.Info(LogCategory.Fish, message);
         }
 
         /// <summary>
