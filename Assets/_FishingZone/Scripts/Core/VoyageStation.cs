@@ -1,4 +1,5 @@
 using FishingZone.Roles;
+using FishingZone.World;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -40,6 +41,32 @@ namespace FishingZone.Core
         [SerializeField]
         private string _wrongRoleText = string.Empty;
 
+        /// <summary>
+        /// What the way home says while the boat is not yet alongside. Used only by a station that
+        /// returns to port, and only in a scene that has a berth.
+        /// </summary>
+        [SerializeField]
+        private string _awayFromBerthText = "Bring her alongside the quay to end the voyage";
+
+        [SerializeField]
+        private string _tooFastAtBerthText = "Ease her to a stop alongside the quay";
+
+        /// <summary>
+        /// Time constant of the speed smoothing on clients, matching the dashboard's, so the prompt
+        /// and the knots shown at the wheel do not tell two different stories.
+        /// </summary>
+        [SerializeField]
+        private float _speedSmoothingTime = 0.5f;
+
+        private Rigidbody _boatBody;
+        private Transform _boat;
+
+        private Vector3 _lastBoatPosition;
+        private bool _hasLastBoatPosition;
+        private float _smoothedBoatSpeed;
+
+        private bool IsReturnToPort => _destination == GameState.Port;
+
         private bool IsDestinationValid =>
             _destination == GameState.Port || _destination == GameState.Expedition;
 
@@ -52,6 +79,86 @@ namespace FishingZone.Core
                 ? "Only the Navigator may set sail"
                 : "Only the Navigator may return to port")
             : _wrongRoleText;
+
+        /// <summary>
+        /// The boat this station is aboard, if it is aboard one. A station on a jetty has no body
+        /// above it and stays put, which reads as stopped wherever it is.
+        /// </summary>
+        private void Awake()
+        {
+            _boatBody = GetComponentInParent<Rigidbody>();
+            _boat = _boatBody != null ? _boatBody.transform : transform;
+        }
+
+        private void OnEnable()
+        {
+            // Forgotten on purpose, as the dashboard does: a boat placed by a scene load would
+            // otherwise read as one great leap.
+            _hasLastBoatPosition = false;
+            _smoothedBoatSpeed = 0f;
+        }
+
+        /// <summary>
+        /// Measures how fast the boat is going, for the prompt on clients.
+        ///
+        /// Taken from how far it moved, because on a client the boat's body is kinematic and
+        /// reports no velocity at all. The server never uses this: it reads its own simulated body.
+        /// Late, so the client has already moved the boat to this frame's pose.
+        /// </summary>
+        private void LateUpdate()
+        {
+            if (!IsReturnToPort)
+            {
+                return;
+            }
+
+            Vector3 position = _boat.position;
+            float deltaTime = Time.deltaTime;
+
+            if (_hasLastBoatPosition && deltaTime > 0f)
+            {
+                Vector3 moved = position - _lastBoatPosition;
+                moved.y = 0f;
+
+                float speed = moved.magnitude / deltaTime;
+                float blend = 1f - Mathf.Exp(-deltaTime / Mathf.Max(_speedSmoothingTime, 0.01f));
+                _smoothedBoatSpeed = Mathf.Lerp(_smoothedBoatSpeed, speed, blend);
+            }
+
+            _lastBoatPosition = position;
+            _hasLastBoatPosition = true;
+        }
+
+        /// <summary>
+        /// Whether the boat lies where a voyage may end.
+        ///
+        /// Always berthed for a station that sets sail rather than returns, and for a scene with no
+        /// berth, which ends a voyage anywhere exactly as before.
+        ///
+        /// The server reads its own simulated body, so the decision rests on the real boat. Clients
+        /// read the measured speed, which only decides the words they see.
+        /// </summary>
+        private BerthStatus CurrentBerthStatus()
+        {
+            if (!IsReturnToPort || !HarbourBerth.AnyExist)
+            {
+                return BerthStatus.Berthed;
+            }
+
+            float speed;
+            if (IsServer && _boatBody != null && !_boatBody.isKinematic)
+            {
+                Vector3 velocity = _boatBody.linearVelocity;
+                velocity.y = 0f;
+                speed = velocity.magnitude;
+            }
+            else
+            {
+                speed = _smoothedBoatSpeed;
+            }
+
+            return HarbourBerth.StatusOf(_boat.position, speed);
+        }
 
         /// <summary>
         /// Says once, and loudly, that this will never take anybody anywhere. A station given a
@@ -93,7 +200,15 @@ namespace FishingZone.Core
                 return WrongRoleText;
             }
 
-            return DepartText;
+            switch (CurrentBerthStatus())
+            {
+                case BerthStatus.Away:
+                    return _awayFromBerthText;
+                case BerthStatus.TooFast:
+                    return _tooFastAtBerthText;
+                default:
+                    return DepartText;
+            }
         }
 
         /// <summary>
@@ -155,6 +270,17 @@ namespace FishingZone.Core
             {
                 GameLog.Info(LogCategory.Flow,
                     $"Refused client {senderId} at '{name}': only the Navigator says where the boat goes, and they are {role}.");
+                return;
+            }
+
+            // A voyage ends alongside the quay, never out at sea. Asked of the server's own boat, so
+            // a client whose prompt read berthed a frame early is still told no.
+            BerthStatus berth = CurrentBerthStatus();
+            if (berth != BerthStatus.Berthed)
+            {
+                GameLog.Info(LogCategory.Flow, berth == BerthStatus.TooFast
+                    ? $"Refused client {senderId} at '{name}': the boat is at the berth but still moving."
+                    : $"Refused client {senderId} at '{name}': the boat is not alongside the quay.");
                 return;
             }
 
